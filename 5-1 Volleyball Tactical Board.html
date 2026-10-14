@@ -1,0 +1,1311 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>5-1 Volleyball Rotation & Tactical Board</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <style>
+    * {
+      box-sizing: border-box;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+    body {
+      background-color: #090d16;
+      color: #f1f5f9;
+      margin: 0;
+      padding: 0;
+      overflow-x: hidden;
+    }
+    /* Persistent HTML player token with 56x56px hit target */
+    .player-token {
+      position: absolute;
+      width: 56px;
+      height: 56px;
+      transform: translate(-50%, -50%);
+      transition: left 0.28s cubic-bezier(0.22, 1, 0.36, 1), top 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+      cursor: grab;
+      touch-action: none;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-user-drag: none;
+      z-index: 20;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    /* Instant 1:1 tracking while dragging */
+    .player-token.is-dragging {
+      transition: none !important;
+      cursor: grabbing !important;
+      z-index: 45;
+    }
+    /* Ensure child elements never swallow pointer events */
+    .player-token * {
+      pointer-events: none !important;
+      user-select: none !important;
+      -webkit-user-select: none !important;
+    }
+    .token-circle {
+      width: 42px;
+      height: 42px;
+      border-radius: 9999px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 900;
+      font-size: 13px;
+      letter-spacing: -0.02em;
+      border: 2.5px solid #0f172a;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.55);
+      transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+    }
+    .player-token:hover .token-circle {
+      transform: scale(1.07);
+      border-color: #ffffff;
+    }
+    .player-token.is-dragging .token-circle {
+      transform: scale(1.14);
+      border-color: #ffffff;
+      box-shadow: 0 10px 24px rgba(0, 0, 0, 0.75);
+    }
+    .player-token.is-selected . selection-halo {
+      opacity: 1;
+    }
+    .player-token.has-fault .token-circle {
+      border-color: #f43f5e !important;
+      box-shadow: 0 0 0 4px rgba(244, 63, 94, 0.38), 0 4px 12px rgba(0, 0, 0, 0.6);
+    }
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #0f172a;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #334155;
+      border-radius: 9999px;
+    }
+  </style>
+</head>
+<body class="min-h-screen bg-slate-950 text-slate-100 select-none">
+  <div class="max-w-7xl mx-auto px-3 sm:px-5 py-4 space-y-4">
+
+    <!-- Top Header Bar -->
+    <header class="bg-slate-900/95 border border-slate-800 rounded-2xl p-3.5 sm:p-4 shadow-xl flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+      <div class="flex items-start sm:items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-400/40 flex items-center justify-center text-amber-400 font-black text-lg shrink-0">
+          5-1
+        </div>
+        <div>
+          <div class="flex flex-wrap items-center gap-2">
+            <h1 class="text-base sm:text-lg font-extrabold tracking-tight text-white">
+              5-1 Volleyball Rotation &amp; Tactical Board
+            </h1>
+            <span class="px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30">
+              Starts at Setter 2
+            </span>
+          </div>
+          <p class="text-xs text-slate-400 mt-0.5">
+            Clockwise game sequence: <span class="text-slate-200 font-semibold">S2 → S1 → S6 → S5 → S4 → S3</span> • Grab and drag any player circle smoothly
+          </p>
+        </div>
+      </div>
+
+      <!-- Header Utility Buttons -->
+      <div class="flex flex-wrap items-center gap-2">
+        <button id="btn-reset-view" type="button"
+          class="px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-amber-300 border border-slate-700 transition">
+          Reset Current View
+        </button>
+        <button id="btn-reset-all" type="button"
+          class="px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition">
+          Reset All Defaults
+        </button>
+        <button id="btn-export-import" type="button"
+          class="px-3 py-1.5 rounded-xl text-xs font-semibold bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/40 transition">
+          Export / Import JSON
+        </button>
+      </div>
+    </header>
+
+    <section class="bg-slate-900/95 border border-slate-800 rounded-2xl p-3 sm:p-4 shadow-xl space-y-3">
+      <div class="flex items-center justify-between gap-2">
+        <div class="flex items-center gap-2">
+          <span class="text-xs font-bold uppercase tracking-wider text-slate-400">
+            Rotation Sequence (Clockwise)
+          </span>
+          <span id="rotation-row-badge" class="px-2 py-0.5 rounded-md text-[11px] font-bold bg-slate-800 text-slate-200 border border-slate-700">
+            Front-Row Setter (2 Hitters)
+          </span>
+        </div>
+
+        <div class="flex items-center gap-1.5">
+          <button id="btn-prev-rot" type="button"
+            class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-bold text-slate-200 border border-slate-700 transition">
+            ← Prev
+          </button>
+          <button id="btn-next-rot" type="button"
+            class="px-2.5 py-1 rounded-lg bg-amber-500 hover:bg-amber-400 text-xs font-black text-slate-950 transition shadow">
+            Rotate CW (Next) →
+          </button>
+        </div>
+      </div>
+
+      <!-- 6 Rotation Buttons Grid -->
+      <div id="rotation-buttons-grid" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+        <!-- Populated by JS -->
+      </div>
+
+      <!-- Tactical Phases & Visual Toggles -->
+      <div class="pt-2.5 border-t border-slate-800/90 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+        <div class="flex flex-wrap items-center gap-1.5" id="phase-buttons-group">
+          <!-- Populated by JS -->
+        </div>
+
+        <div class="flex flex-wrap items-center gap-3 text-xs">
+          <label class="inline-flex items-center gap-2 cursor-pointer bg-slate-950 px-2.5 py-1.5 rounded-xl border border-slate-800">
+            <input id="chk-libero" type="checkbox" class="accent-pink-500 w-3.5 h-3.5 rounded cursor-pointer" />
+            <span class="font-semibold text-slate-200">Sub Libero (<span class="text-pink-400 font-bold">L</span>) in Back Row</span>
+          </label>
+
+          <label class="inline-flex items-center gap-2 cursor-pointer bg-slate-950 px-2.5 py-1.5 rounded-xl border border-slate-800">
+            <input id="chk-arrows" type="checkbox" checked class="accent-amber-500 w-3.5 h-3.5 rounded cursor-pointer" />
+            <span class="font-semibold text-slate-200">Movement Arrows</span>
+          </label>
+
+          <label class="inline-flex items-center gap-2 cursor-pointer bg-slate-950 px-2.5 py-1.5 rounded-xl border border-slate-800">
+            <input id="chk-overlaps" type="checkbox" checked class="accent-emerald-500 w-3.5 h-3.5 rounded cursor-pointer" />
+            <span class="font-semibold text-slate-200">Overlap Guide Lines</span>
+          </label>
+        </div>
+      </div>
+    </section>
+
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
+
+      <!-- Left Column: Court & Overlap Validator (7 cols) -->
+      <div class="lg:col-span-7 bg-slate-900/95 border border-slate-800 rounded-2xl p-3.5 sm:p-4 shadow-xl space-y-3">
+
+        <!-- Live FIVB Overlap Validator Banner -->
+        <div id="overlap-banner" class="rounded-xl px-3.5 py-2.5 border text-xs flex items-start justify-between gap-3 transition">
+          <div class="space-y-0.5">
+            <div id="overlap-title" class="font-bold text-sm">
+              ✓ Legal FIVB Formation
+            </div>
+            <div id="overlap-subtitle" class="text-slate-300 leading-relaxed">
+              All front-to-back and left-to-right rotational relationships are valid.
+            </div>
+          </div>
+          <span id="overlap-pill" class="px-2 py-0.5 rounded-md font-bold text-[11px] uppercase shrink-0">
+            VALID
+          </span>
+        </div>
+
+        <!-- Interactive Court Stage (100:104 aspect ratio matching SVG viewBox) -->
+        <div id="court-stage" class="relative w-full max-w-[540px] mx-auto aspect-[100/104] bg-slate-950 rounded-2xl border border-slate-800 shadow-inner overflow-hidden touch-none select-none">
+          <svg id="court-svg" viewBox="0 0 100 104" class="w-full h-full pointer-events-none select-none block">
+            <defs>
+              <marker id="arrow-head" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="4.5" markerHeight="4.5" orient="auto-start-reverse">
+                <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#94a3b8" fill-opacity="0.85" />
+              </marker>
+              <marker id="arrow-head-setter" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+                <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#fbbf24" />
+              </marker>
+              <pattern id="net-mesh" width="2" height="2" patternUnits="userSpaceOnUse">
+                <path d="M 0 1 L 2 1 M 1 0 L 1 2" stroke="#cbd5e1" stroke-width="0.25" />
+              </pattern>
+            </defs>
+
+            <!-- Out-of-bounds Floor -->
+            <rect x="0" y="0" width="100" height="104" fill="#090d16" />
+
+            <!-- Playing Court Surface -->
+            <rect x="6" y="8" width="88" height="84" rx="0.5" fill="#1e293b" stroke="#e2e8f0" stroke-width="0.9" />
+
+            <!-- Front Zone (Net y=8 to 3m Attack Line y=36) -->
+            <rect x="6" y="8" width="88" height="28" fill="#334155" fill-opacity="0.55" />
+
+            <!-- Subtle Zone Divider Grid Lines -->
+            <line x1="35.33" y1="8" x2="35.33" y2="92" stroke="#64748b" stroke-width="0.3" stroke-dasharray="1.5 1.5" stroke-opacity="0.45" />
+            <line x1="64.66" y1="8" x2="64.66" y2="92" stroke="#64748b" stroke-width="0.3" stroke-dasharray="1.5 1.5" stroke-opacity="0.45" />
+
+            <!-- 3-Meter (10ft) Attack Line & Coaching Extensions -->
+            <line x1="2.5" y1="36" x2="6" y2="36" stroke="#e2e8f0" stroke-width="0.6" stroke-dasharray="1 0.8" />
+            <line x1="6" y1="36" x2="94" y2="36" stroke="#f8fafc" stroke-width="0.75" />
+            <line x1="94" y1="36" x2="97.5" y2="36" stroke="#e2e8f0" stroke-width="0.6" stroke-dasharray="1 0.8" />
+            <text x="50" y="34.7" text-anchor="middle" fill="#cbd5e1" fill-opacity="0.55" font-size="2.1" font-weight="700">
+              3M ATTACK LINE
+            </text>
+
+            <!-- Service Zone Hash Marks (Back Right behind Z1) -->
+            <line x1="94" y1="92" x2="94" y2="95.5" stroke="#cbd5e1" stroke-width="0.6" />
+            <line x1="64.66" y1="92" x2="64.66" y2="95" stroke="#64748b" stroke-width="0.5" stroke-dasharray="1 1" />
+            <text x="79.5" y="96.5" text-anchor="middle" fill="#64748b" font-size="2" font-weight="700">
+              SERVICE ZONE (Z1)
+            </text>
+
+            <!-- Net & Antennas at Top -->
+            <rect x="4" y="5.8" width="92" height="2.4" fill="url(#net-mesh)" stroke="#f8fafc" stroke-width="0.5" />
+            <circle cx="6" cy="7" r="1.1" fill="#ef4444" />
+            <circle cx="94" cy="7" r="1.1" fill="#ef4444" />
+            <text x="50" y="4.2" text-anchor="middle" fill="#f8fafc" font-size="2.7" font-weight="800" letter-spacing="0.08em">
+              NET • FRONT ROW (Z4 / Z3 / Z2)
+            </text>
+
+            <!-- Setter Target Spot Indicator (Between Z2 and Z3 at the net) -->
+            <g id="setter-target-marker" transform="translate(68, 12.5)">
+              <circle r="3.6" fill="#f59e0b" fill-opacity="0.14" stroke="#f59e0b" stroke-width="0.45" stroke-dasharray="1 1" />
+              <text text-anchor="middle" dy="0.8" fill="#fbbf24" fill-opacity="0.7" font-size="2.1" font-weight="800">SET</text>
+            </g>
+
+            <!-- Zone Watermarks (Z4, Z3, Z2 in Front; Z5, Z6, Z1 in Back) -->
+            <g id="zone-watermarks">
+              <text x="20" y="23" text-anchor="middle" fill="#94a3b8" fill-opacity="0.22" font-size="5" font-weight="900">Z4</text>
+              <text x="50" y="23" text-anchor="middle" fill="#94a3b8" fill-opacity="0.22" font-size="5" font-weight="900">Z3</text>
+              <text x="80" y="23" text-anchor="middle" fill="#94a3b8" fill-opacity="0.22" font-size="5" font-weight="900">Z2</text>
+              <text x="20" y="68" text-anchor="middle" fill="#94a3b8" fill-opacity="0.22" font-size="5" font-weight="900">Z5</text>
+              <text x="50" y="68" text-anchor="middle" fill="#94a3b8" fill-opacity="0.22" font-size="5" font-weight="900">Z6</text>
+              <text x="80" y="68" text-anchor="middle" fill="#94a3b8" fill-opacity="0.22" font-size="5" font-weight="900">Z1</text>
+            </g>
+
+            <!-- Selected Player Legal Bounding Box Layer -->
+            <g id="legal-bounds-layer"></g>
+
+            <!-- Overlap Neighbor Check Lines Layer -->
+            <g id="overlap-lines-layer"></g>
+
+            <!-- Movement / Transition Arrows Layer -->
+            <g id="movement-arrows-layer"></g>
+          </svg>
+
+          <!-- Persistent HTML Player Tokens Overlay Layer -->
+          <div id="tokens-overlay" class="absolute inset-0 overflow-hidden"></div>
+        </div>
+
+        <!-- Quick Legend & Selected Player Inspector -->
+        <div class="flex flex-wrap items-center justify-between gap-2 pt-1 text-xs text-slate-400">
+          <div id="selected-player-hint" class="font-medium text-slate-300">
+            Click or drag any player circle to inspect their legal zone rectangle and diagonal partner.
+          </div>
+          <div class="flex items-center gap-3">
+            <span class="inline-flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-amber-400 inline-block"></span> s</span>
+            <span class="inline-flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-purple-400 inline-block"></span> d</span>
+            <span class="inline-flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-blue-400 inline-block"></span> a1/a2</span>
+            <span class="inline-flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-emerald-400 inline-block"></span> mb1/mb2</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right Column: Roster Name Editor & Rotational Zone Breakdown (5 cols) -->
+      <div class="lg:col-span-5 space-y-4">
+
+        <!-- Customize Player Names Card -->
+        <div class="bg-slate-900/95 border border-slate-800 rounded-2xl p-4 shadow-xl space-y-3">
+          <div class="flex items-center justify-between">
+            <div>
+              <h2 class="text-sm font-extrabold uppercase tracking-wider text-amber-400">
+                Player Roster &amp; Custom Names
+              </h2>
+              <p class="text-xs text-slate-400">
+                Diagonal pairs: <span class="text-slate-200 font-semibold">s ↔ d</span>, <span class="text-slate-200 font-semibold">a1 ↔ a2</span>, <span class="text-slate-200 font-semibold">mb1 ↔ mb2</span>
+              </p>
+            </div>
+            <span class="text-[11px] text-emerald-400 bg-emerald-950/60 border border-emerald-500/30 px-2 py-0.5 rounded-full font-semibold">
+              Auto-Saved
+            </span>
+          </div>
+
+          <div id="roster-inputs-grid" class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+            <!-- Populated by JS -->
+          </div>
+        </div>
+
+        <!-- Current Rotation 6-Zone Grid & Tactical Coaching Notes -->
+        <div class="bg-slate-900/95 border border-slate-800 rounded-2xl p-4 shadow-xl space-y-3">
+          <div class="flex items-center justify-between">
+            <h2 class="text-sm font-extrabold uppercase tracking-wider text-blue-400">
+              Rotational Lineup Grid (Zones 1–6)
+            </h2>
+            <span id="current-rot-badge" class="text-xs font-bold text-white bg-slate-800 px-2.5 py-0.5 rounded-lg border border-slate-700">
+              Setter 2 (S2)
+            </span>
+          </div>
+
+          <!-- Front Row (Z4, Z3, Z2) & Back Row (Z5, Z6, Z1) Mini Court Grid -->
+          <div class="space-y-1.5">
+            <div class="text-[10px] font-bold uppercase tracking-wider text-slate-400 text-center">
+              ▲ Net — Front Row (Zones 4 • 3 • 2) ▲
+            </div>
+            <div id="mini-grid-front" class="grid grid-cols-3 gap-2"></div>
+            <div class="border-t border-dashed border-slate-700 my-1.5"></div>
+            <div id="mini-grid-back" class="grid grid-cols-3 gap-2"></div>
+            <div class="text-[10px] font-bold uppercase tracking-wider text-slate-400 text-center">
+              ▼ Baseline — Back Row (Zones 5 • 6 • 1) ▼
+            </div>
+          </div>
+
+          <!-- Tactical Coaching Note Box -->
+          <div class="p-3 rounded-xl bg-slate-950 border border-slate-800/90 space-y-1">
+            <div id="tactical-note-title" class="text-xs font-bold text-amber-300">
+              Tactical Assignment
+            </div>
+            <p id="tactical-note-body" class="text-xs text-slate-300 leading-relaxed">
+              Loading tactical notes...
+            </p>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Export / Import JSON Modal -->
+  <div id="json-modal" class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm hidden items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-700 rounded-2xl max-w-lg w-full p-5 shadow-2xl space-y-4">
+      <div class="flex items-center justify-between">
+        <h3 class="text-base font-extrabold text-white">Export / Import Tactical Board State</h3>
+        <button id="btn-close-modal" type="button" class="text-slate-400 hover:text-white text-sm font-bold px-2 py-1">✕</button>
+      </div>
+      <p class="text-xs text-slate-400">
+        Copy the JSON below to share your custom player names and custom court formations, or paste JSON here and click <strong>Import State</strong>.
+      </p>
+      <textarea id="json-textarea" rows="8"
+        class="w-full rounded-xl bg-slate-950 border border-slate-700 p-3 text-xs font-mono text-emerald-300 focus:outline-none focus:border-amber-400"></textarea>
+      <div class="flex flex-wrap items-center justify-between gap-2">
+        <button id="btn-copy-json" type="button"
+          class="px-3.5 py-2 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700">
+          Copy to Clipboard
+        </button>
+        <div class="flex items-center gap-2">
+          <button id="btn-import-json" type="button"
+            class="px-4 py-2 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-400 text-slate-950">
+            Import State
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Non-intrusive Toast Notification -->
+  <div id="toast" class="fixed bottom-4 right-4 z-50 hidden px-4 py-2.5 rounded-xl bg-slate-800 border border-amber-400/50 text-xs font-semibold text-white shadow-2xl"></div>
+
+  <!-- Core Application JavaScript -->
+  <script>
+    (function () {
+      const STORAGE_KEY = 'vb_5_1_tactical_board_v3';
+
+      // Clockwise rotation sequence starting at Setter 2 (S2 -> S1 -> S6 -> S5 -> S4 -> S3)
+      const ROTATIONS = [
+        {
+          id: 'S2',
+          label: 'Setter 2',
+          short: 'S2',
+          isStart: true,
+          setterZone: 2,
+          rowType: 'Front-Row Setter (2 Front Hitters)',
+          // Z1=a1, Z2=s, Z3=mb2, Z4=a2, Z5=d, Z6=mb1
+          zones: { 1: 'a1', 2: 's', 3: 'mb2', 4: 'a2', 5: 'd', 6: 'mb1' }
+        },
+        {
+          id: 'S1',
+          label: 'Setter 1',
+          short: 'S1',
+          isStart: false,
+          setterZone: 1,
+          rowType: 'Back-Row Setter (3 Front Hitters)',
+          // Z1=s, Z2=mb2, Z3=a2, Z4=d, Z5=mb1, Z6=a1
+          zones: { 1: 's', 2: 'mb2', 3: 'a2', 4: 'd', 5: 'mb1', 6: 'a1' }
+        },
+        {
+          id: 'S6',
+          label: 'Setter 6',
+          short: 'S6',
+          isStart: false,
+          setterZone: 6,
+          rowType: 'Back-Row Setter (3 Front Hitters)',
+          // Z1=mb2, Z2=a2, Z3=d, Z4=mb1, Z5=a1, Z6=s
+          zones: { 1: 'mb2', 2: 'a2', 3: 'd', 4: 'mb1', 5: 'a1', 6: 's' }
+        },
+        {
+          id: 'S5',
+          label: 'Setter 5',
+          short: 'S5',
+          isStart: false,
+          setterZone: 5,
+          rowType: 'Back-Row Setter (3 Front Hitters)',
+          // Z1=a2, Z2=d, Z3=mb1, Z4=a1, Z5=s, Z6=mb2
+          zones: { 1: 'a2', 2: 'd', 3: 'mb1', 4: 'a1', 5: 's', 6: 'mb2' }
+        },
+        {
+          id: 'S4',
+          label: 'Setter 4',
+          short: 'S4',
+          isStart: false,
+          setterZone: 4,
+          rowType: 'Front-Row Setter (2 Front Hitters)',
+          // Z1=d, Z2=mb1, Z3=a1, Z4=s, Z5=mb2, Z6=a2
+          zones: { 1: 'd', 2: 'mb1', 3: 'a1', 4: 's', 5: 'mb2', 6: 'a2' }
+        },
+        {
+          id: 'S3',
+          label: 'Setter 3',
+          short: 'S3',
+          isStart: false,
+          setterZone: 3,
+          rowType: 'Front-Row Setter (2 Front Hitters)',
+          // Z1=mb1, Z2=a1, Z3=s, Z4=mb2, Z5=a2, Z6=d
+          zones: { 1: 'mb1', 2: 'a1', 3: 's', 4: 'mb2', 5: 'a2', 6: 'd' }
+        }
+      ];
+
+      const ROLES_ORDER = ['s', 'd', 'a1', 'a2', 'mb1', 'mb2'];
+      const ROLES_META = {
+        s:   { id: 's',   title: 'Setter',             pair: 'd',   color: '#f59e0b', textDark: true },
+        d:   { id: 'd',   title: 'Diagonal / Opp',     pair: 's',   color: '#a855f7', textDark: false },
+        a1:  { id: 'a1',  title: 'Outside Attacker 1', pair: 'a2',  color: '#3b82f6', textDark: false },
+        a2:  { id: 'a2',  title: 'Outside Attacker 2', pair: 'a1',  color: '#0ea5e9', textDark: true },
+        mb1: { id: 'mb1', title: 'Middle Blocker 1',   pair: 'mb2', color: '#10b981', textDark: true },
+        mb2: { id: 'mb2', title: 'Middle Blocker 2',   pair: 'mb1', color: '#14b8a6', textDark: true },
+        L:   { id: 'L',   title: 'Libero (Back Row)',  pair: 'mb',  color: '#ec4899', textDark: false }
+      };
+
+      const PHASES = [
+        { id: 'rotational', label: '1. Rotational Order', checkOverlap: true },
+        { id: 'receive',    label: '2. Serve-Receive',    checkOverlap: true },
+        { id: 'serve',      label: '3. Serving Stack',    checkOverlap: true },
+        { id: 'base',       label: '4. Base / Transition',checkOverlap: false }
+      ];
+
+      const ZONE_CENTERS = {
+        4: { x: 20, y: 22 },
+        3: { x: 50, y: 22 },
+        2: { x: 80, y: 22 },
+        5: { x: 20, y: 68 },
+        6: { x: 50, y: 68 },
+        1: { x: 80, y: 68 }
+      };
+
+      // 100% Overlap-Legal 3-Passer Serve-Receive Stacks keyed by Rotation ID and Zone (1-6)
+      const SERVE_RECEIVE_BY_ZONE = {
+        S2: {
+          4: { x: 26, y: 58 },
+          3: { x: 50, y: 18 },
+          2: { x: 74, y: 14 },
+          5: { x: 14, y: 76 },
+          6: { x: 52, y: 68 },
+          1: { x: 78, y: 64 }
+        },
+        S1: {
+          4: { x: 16, y: 20 },
+          3: { x: 48, y: 60 },
+          2: { x: 80, y: 16 },
+          5: { x: 24, y: 66 },
+          6: { x: 72, y: 68 },
+          1: { x: 88, y: 26 }
+        },
+        S6: {
+          4: { x: 18, y: 18 },
+          3: { x: 56, y: 14 },
+          2: { x: 78, y: 60 },
+          5: { x: 24, y: 66 },
+          6: { x: 56, y: 24 },
+          1: { x: 66, y: 68 }
+        },
+        S5: {
+          4: { x: 22, y: 56 },
+          3: { x: 52, y: 16 },
+          2: { x: 84, y: 18 },
+          5: { x: 36, y: 63 },
+          6: { x: 54, y: 68 },
+          1: { x: 78, y: 64 }
+        },
+        S4: {
+          4: { x: 16, y: 14 },
+          3: { x: 48, y: 60 },
+          2: { x: 80, y: 18 },
+          5: { x: 24, y: 66 },
+          6: { x: 72, y: 68 },
+          1: { x: 88, y: 76 }
+        },
+        S3: {
+          4: { x: 18, y: 18 },
+          3: { x: 64, y: 14 },
+          2: { x: 78, y: 58 },
+          5: { x: 24, y: 66 },
+          6: { x: 42, y: 78 },
+          1: { x: 58, y: 68 }
+        }
+      };
+
+      const TACTICAL_NOTES = {
+        S2: 'Setter (s) starts in Zone 2 right at the target spot. Outside a2 drops from Z4 to pass left alongside mb1/L (Z6) and a1 (Z1). Diagonal (d) in Z5 stays behind a2 ready for a back-row attack. Winning side-out rotates directly into S1 with Setter serving!',
+        S1: 'Setter (s) is in Zone 1 and pushes up behind mb2 (Z2) on the right sideline to penetrate. Outside a2 drops from Z3 into the passing line with mb1/L (Z5) and a1 (Z6). Diagonal (d) starts in Z4 and either hits left on the first ball or switches right.',
+        S6: 'Setter (s) starts in Zone 6 and pushes directly behind Diagonal (d in Z3) near the net target. Outside a2 drops from Z2 to pass on the right, a1 passes left (Z5), and mb2/L passes middle-right (Z1) while staying right of Setter.',
+        S5: 'Setter (s) starts in Zone 5 behind Outside a1 (Z4). a1 drops to pass left while Setter tucks just behind and inside a1 (staying behind Z4 and left of Z6) for a clean release to the net. Three strong front-row attackers (a1, mb1, d) in position!',
+        S4: 'Setter (s) is in the front row in Zone 4 (Left Front) and releases along the net on serve contact. Outside a1 drops from Z3 to pass between mb2/L (Z5) and a2 (Z6), while Diagonal (d) pulls back in Z1 for a back-row right-side attack.',
+        S3: 'Setter (s) starts in Zone 3 right at the target spot. Outside a1 drops back from Z2 to pass right, mb1/L passes middle-right (Z1), and a2 passes left (Z5). Diagonal (d) in Z6 stays deep behind s and between a2 and mb1/L.'
+      };
+
+      const DEFAULT_STATE = {
+        rotation: 'S2',
+        phase: 'receive',
+        useLibero: true,
+        showArrows: true,
+        showOverlaps: true,
+        selectedRole: 's',
+        names: {
+          s: 'Setter',
+          d: 'Diagonal',
+          a1: 'Attacker 1',
+          a2: 'Attacker 2',
+          mb1: 'Middle 1',
+          mb2: 'Middle 2',
+          L: 'Libero'
+        },
+        customCoords: {}
+      };
+
+      function loadState() {
+        try {
+          const raw = localStorage.getItem(STORAGE_KEY);
+          if (!raw) return JSON.parse(JSON.stringify(DEFAULT_STATE));
+          const parsed = JSON.parse(raw);
+          return {
+            ...DEFAULT_STATE,
+            ...parsed,
+            names: { ...DEFAULT_STATE.names, ...(parsed.names || {}) },
+            customCoords: parsed.customCoords || {}
+          };
+        } catch (err) {
+          return JSON.parse(JSON.stringify(DEFAULT_STATE));
+        }
+      }
+
+      let state = loadState();
+
+      function saveState() {
+        try {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+        } catch (err) {
+          // Ignore storage quota errors
+        }
+      }
+
+      function getRotationObj(rotId) {
+        return ROTATIONS.find((r) => r.id === rotId) || ROTATIONS[0];
+      }
+
+      function getRoleToZoneMap(rotId) {
+        const rot = getRotationObj(rotId);
+        const roleToZone = {};
+        Object.entries(rot.zones).forEach(([z, role]) => {
+          roleToZone[role] = Number(z);
+        });
+        return { zoneToRole: rot.zones, roleToZone };
+      }
+
+      function getDefaultCoordsForPhase(rotId, phaseId) {
+        const { roleToZone } = getRoleToZoneMap(rotId);
+        const result = {};
+
+        ROLES_ORDER.forEach((role) => {
+          const z = roleToZone[role];
+          const isFront = z === 4 || z === 3 || z === 2;
+
+          if (phaseId === 'rotational') {
+            result[role] = { ...ZONE_CENTERS[z] };
+          } else if (phaseId === 'receive') {
+            const pt = SERVE_RECEIVE_BY_ZONE[rotId] && SERVE_RECEIVE_BY_ZONE[rotId][z];
+            result[role] = pt ? { ...pt } : { ...ZONE_CENTERS[z] };
+          } else if (phaseId === 'serve') {
+            const serveByZone = {
+              4: { x: 40, y: 15 },
+              3: { x: 50, y: 14 },
+              2: { x: 60, y: 15 },
+              5: { x: 30, y: 70 },
+              6: { x: 52, y: 74 },
+              1: { x: 80, y: 95 }
+            };
+            result[role] = { ...serveByZone[z] };
+          } else {
+            if (role === 's') {
+              result[role] = isFront ? { x: 74, y: 15 } : { x: 78, y: 64 };
+            } else if (role === 'd') {
+              result[role] = isFront ? { x: 84, y: 20 } : { x: 82, y: 68 };
+            } else if (role === 'a1' || role === 'a2') {
+              result[role] = isFront ? { x: 16, y: 20 } : { x: 22, y: 66 };
+            } else {
+              result[role] = isFront ? { x: 50, y: 16 } : { x: 50, y: 76 };
+            }
+          }
+        });
+
+        return result;
+      }
+
+      function getCurrentCoords(rotId, phaseId) {
+        const key = `${rotId}_${phaseId}`;
+        const defaults = getDefaultCoordsForPhase(rotId, phaseId);
+        const custom = state.customCoords[key] || {};
+        const merged = {};
+        ROLES_ORDER.forEach((role) => {
+          merged[role] = custom[role] ? { ...custom[role] } : { ...defaults[role] };
+        });
+        return merged;
+      }
+
+      function validateOverlaps(zoneToRole, coords) {
+        const rules = [
+          { zA: 4, zB: 3, axis: 'x', label: 'Z4 left of Z3' },
+          { zA: 3, zB: 2, axis: 'x', label: 'Z3 left of Z2' },
+          { zA: 5, zB: 6, axis: 'x', label: 'Z5 left of Z6' },
+          { zA: 6, zB: 1, axis: 'x', label: 'Z6 left of Z1' },
+          { zA: 4, zB: 5, axis: 'y', label: 'Z4 ahead of Z5' },
+          { zA: 3, zB: 6, axis: 'y', label: 'Z3 ahead of Z6' },
+          { zA: 2, zB: 1, axis: 'y', label: 'Z2 ahead of Z1' }
+        ];
+
+        return rules.map((r) => {
+          const roleA = zoneToRole[r.zA];
+          const roleB = zoneToRole[r.zB];
+          const pA = coords[roleA];
+          const pB = coords[roleB];
+          const valid = r.axis === 'x' ? pA.x < pB.x - 0.8 : pA.y < pB.y - 0.8;
+          return {
+            ...r,
+            roleA,
+            roleB,
+            pA,
+            pB,
+            valid,
+            faultText: `Z${r.zA} (${roleA.toUpperCase()}) must be ${r.axis === 'x' ? 'left of' : 'in front of'} Z${r.zB} (${roleB.toUpperCase()})`
+          };
+        });
+      }
+
+      function getLegalBoundsForZone(z, zoneToRole, coords) {
+        let minX = 6;
+        let maxX = 94;
+        let minY = 8;
+        let maxY = 92;
+
+        const ptOf = (zoneNum) => coords[zoneToRole[zoneNum]];
+
+        if (z === 4) {
+          maxX = Math.min(maxX, ptOf(3).x - 1);
+          maxY = Math.min(maxY, ptOf(5).y - 1);
+        } else if (z === 3) {
+          minX = Math.max(minX, ptOf(4).x + 1);
+          maxX = Math.min(maxX, ptOf(2).x - 1);
+          maxY = Math.min(maxY, ptOf(6).y - 1);
+        } else if (z === 2) {
+          minX = Math.max(minX, ptOf(3).x + 1);
+          maxY = Math.min(maxY, ptOf(1).y - 1);
+        } else if (z === 5) {
+          maxX = Math.min(maxX, ptOf(6).x - 1);
+          minY = Math.max(minY, ptOf(4).y + 1);
+        } else if (z === 6) {
+          minX = Math.max(minX, ptOf(5).x + 1);
+          maxX = Math.min(maxX, ptOf(1).x - 1);
+          minY = Math.max(minY, ptOf(3).y + 1);
+        } else if (z === 1) {
+          minX = Math.max(minX, ptOf(6).x + 1);
+          minY = Math.max(minY, ptOf(2).y + 1);
+        }
+
+        return { minX, maxX, minY, maxY };
+      }
+
+      function isLiberoActiveForRole(role, z) {
+        if (!state.useLibero) return false;
+        if (role !== 'mb1' && role !== 'mb2') return false;
+        return z === 1 || z === 6 || z === 5;
+      }
+
+      const courtStage = document.getElementById('court-stage');
+      const tokensOverlay = document.getElementById('tokens-overlay');
+      const tokenRefs = {};
+
+      // Drag state variables
+      let draggingRole = null;
+      let activePointerId = null;
+      let grabOffsetX = 0;
+      let grabOffsetY = 0;
+
+      function createPersistentTokens() {
+        tokensOverlay.innerHTML = '';
+
+        ROLES_ORDER.forEach((role) => {
+          const el = document.createElement('div');
+          el.className = 'player-token';
+          el.setAttribute('data-role', role);
+
+          // Selection/partner halo ring
+          const halo = document.createElement('div');
+          halo.className = 'absolute w-[52px] h-[52px] rounded-full pointer-events-none transition-opacity duration-150 opacity-0';
+
+          // Zone pill above circle
+          const zoneBadge = document.createElement('div');
+          zoneBadge.className = 'absolute -top-2.5 px-1.5 py-0.2 rounded bg-slate-950 border border-slate-600 text-[10px] font-extrabold text-slate-200 leading-tight shadow';
+
+          // Main colored circle
+          const circle = document.createElement('div');
+          circle.className = 'token-circle';
+
+          // Role shorthand text inside circle
+          const codeText = document.createElement('span');
+          circle.appendChild(codeText);
+
+          // Custom player name pill below circle
+          const nameBadge = document.createElement('div');
+          nameBadge.className = 'absolute -bottom-3 px-1.5 py-0.5 rounded bg-slate-950/95 border border-slate-700 text-[10px] font-bold text-slate-100 whitespace-nowrap max-w-[92px] truncate leading-none shadow-md';
+
+          el.appendChild(halo);
+          el.appendChild(circle);
+          el.appendChild(zoneBadge);
+          el.appendChild(nameBadge);
+
+          // Attach Pointer Events directly to the persistent token element
+          el.addEventListener('pointerdown', (e) => {
+            if (e.button !== undefined && e.button !== 0) return;
+            e.preventDefault();
+            e.stopPropagation();
+
+            draggingRole = role;
+            activePointerId = e.pointerId;
+            state.selectedRole = role;
+
+            // Immediately disable CSS position transitions for 1:1 dragging
+            el.classList.add('is-dragging');
+
+            try {
+              el.setPointerCapture(e.pointerId);
+            } catch (err) {
+              // Ignore if synthetic event
+            }
+
+            // Record exact pointer offset from token center in court units (0..100, 0..104)
+            const rect = courtStage.getBoundingClientRect();
+            const pointerCourtX = ((e.clientX - rect.left) / rect.width) * 100;
+            const pointerCourtY = ((e.clientY - rect.top) / rect.height) * 104;
+            const currentCoords = getCurrentCoords(state.rotation, state.phase)[role];
+
+            grabOffsetX = pointerCourtX - currentCoords.x;
+            grabOffsetY = pointerCourtY - currentCoords.y;
+
+            renderCourt();
+          });
+
+          el.addEventListener('pointermove', (e) => {
+            if (draggingRole !== role || e.pointerId !== activePointerId) return;
+            e.preventDefault();
+
+            const rect = courtStage.getBoundingClientRect();
+            if (!rect.width || !rect.height) return;
+
+            const pointerCourtX = ((e.clientX - rect.left) / rect.width) * 100;
+            const pointerCourtY = ((e.clientY - rect.top) / rect.height) * 104;
+
+            const clampedX = Math.round(Math.max(6, Math.min(94, pointerCourtX - grabOffsetX)) * 10) / 10;
+            const clampedY = Math.round(Math.max(8, Math.min(96, pointerCourtY - grabOffsetY)) * 10) / 10;
+
+            const key = `${state.rotation}_${state.phase}`;
+            if (!state.customCoords[key]) state.customCoords[key] = {};
+            state.customCoords[key][role] = { x: clampedX, y: clampedY };
+
+            renderCourt();
+          });
+
+          const finishDrag = (e) => {
+            if (draggingRole !== role) return;
+            if (e.pointerId !== undefined && activePointerId !== null && e.pointerId !== activePointerId) return;
+
+            el.classList.remove('is-dragging');
+            try {
+              if (activePointerId !== null && el.hasPointerCapture(activePointerId)) {
+                el.releasePointerCapture(activePointerId);
+              }
+            } catch (err) {
+              // Ignore release errors
+            }
+
+            draggingRole = null;
+            activePointerId = null;
+            saveState();
+            renderCourt();
+          };
+
+          el.addEventListener('pointerup', finishDrag);
+          el.addEventListener('pointercancel', finishDrag);
+          el.addEventListener('lostpointercapture', finishDrag);
+
+          tokensOverlay.appendChild(el);
+          tokenRefs[role] = { el, halo, zoneBadge, circle, codeText, nameBadge };
+        });
+      }
+
+      function renderControls() {
+        const rotObj = getRotationObj(state.rotation);
+        document.getElementById('rotation-row-badge').textContent = rotObj.rowType;
+        document.getElementById('current-rot-badge').textContent = `${rotObj.label} (${rotObj.short})`;
+        document.getElementById('chk-libero').checked = Boolean(state.useLibero);
+        document.getElementById('chk-arrows').checked = Boolean(state.showArrows);
+        document.getElementById('chk-overlaps').checked = Boolean(state.showOverlaps);
+
+        const rotGrid = document.getElementById('rotation-buttons-grid');
+        rotGrid.innerHTML = '';
+        ROTATIONS.forEach((r) => {
+          const active = r.id === state.rotation;
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = `p-2.5 rounded-xl border text-left transition flex flex-col justify-between ${
+            active
+              ? 'bg-amber-500/20 border-amber-400 text-white shadow-lg shadow-amber-500/10'
+              : 'bg-slate-950/90 border-slate-800 text-slate-400 hover:text-slate-200 hover:border-slate-700'
+          }`;
+          btn.innerHTML = `
+            <div class="flex items-center justify-between gap-1">
+              <span class="text-xs font-extrabold ${active ? 'text-amber-300' : 'text-slate-200'}">${r.label} (${r.short})</span>
+              ${
+                r.isStart
+                  ? '<span class="px-1.5 py-0.5 text-[9px] font-black uppercase rounded bg-amber-400 text-slate-950">START</span>'
+                  : `<span class="text-[10px] font-mono opacity-75">Z${r.setterZone}</span>`
+              }
+            </div>
+            <div class="text-[10px] mt-1 ${active ? 'text-slate-200' : 'text-slate-500'}">
+              Setter in Zone ${r.setterZone} (${r.setterZone >= 2 && r.setterZone <= 4 ? 'Front' : 'Back'})
+            </div>
+          `;
+          btn.addEventListener('click', () => {
+            state.rotation = r.id;
+            saveState();
+            renderAll();
+          });
+          rotGrid.appendChild(btn);
+        });
+
+        const phaseGroup = document.getElementById('phase-buttons-group');
+        phaseGroup.innerHTML = '';
+        PHASES.forEach((p) => {
+          const active = p.id === state.phase;
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = `px-3 py-1.5 rounded-xl text-xs font-bold border transition ${
+            active
+              ? 'bg-blue-600 border-blue-400 text-white shadow'
+              : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200'
+          }`;
+          btn.textContent = p.label;
+          btn.addEventListener('click', () => {
+            state.phase = p.id;
+            saveState();
+            renderAll();
+          });
+          phaseGroup.appendChild(btn);
+        });
+      }
+
+      function renderSidebar() {
+        const { roleToZone } = getRoleToZoneMap(state.rotation);
+        const rosterGrid = document.getElementById('roster-inputs-grid');
+        rosterGrid.innerHTML = '';
+
+        const allRoles = [...ROLES_ORDER, 'L'];
+        allRoles.forEach((role) => {
+          const meta = ROLES_META[role];
+          const z = role === 'L' ? 'Back Row' : `Zone ${roleToZone[role]}`;
+          const isSelected = state.selectedRole === role;
+
+          const card = document.createElement('div');
+          card.className = `p-2.5 rounded-xl border transition ${
+            isSelected
+              ? 'bg-slate-800/90 border-amber-400/70'
+              : 'bg-slate-950/90 border-slate-800'
+          }`;
+
+          card.innerHTML = `
+            <div class="flex items-center justify-between text-xs mb-1.5">
+              <div class="flex items-center gap-1.5">
+                <span class="w-5 h-5 rounded-md flex items-center justify-center font-black text-[11px]"
+                  style="background:${meta.color}; color:${meta.textDark ? '#090d16' : '#ffffff'}">
+                  ${role}
+                </span>
+                <span class="font-bold text-slate-200">${meta.title}</span>
+              </div>
+              <span class="text-[11px] font-mono text-slate-400">${z}</span>
+            </div>
+            <input
+              type="text"
+              data-role-input="${role}"
+              value="${(state.names[role] || '').replace(/"/g, '&quot;')}"
+              placeholder="Player name..."
+              class="w-full px-2.5 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-xs font-semibold text-white focus:outline-none focus:border-amber-400"
+            />
+          `;
+
+          const input = card.querySelector('input');
+          input.addEventListener('focus', () => {
+            if (role !== 'L') {
+              state.selectedRole = role;
+              renderCourt();
+            }
+          });
+          input.addEventListener('input', (e) => {
+            state.names[role] = e.target.value;
+            saveState();
+            renderCourt();
+            renderMiniGrid();
+          });
+
+          rosterGrid.appendChild(card);
+        });
+
+        renderMiniGrid();
+
+        document.getElementById('tactical-note-title').textContent = `${getRotationObj(state.rotation).label} (${state.rotation}) — Tactical Summary`;
+        document.getElementById('tactical-note-body').textContent = TACTICAL_NOTES[state.rotation] || '';
+      }
+
+      function renderMiniGrid() {
+        const { zoneToRole } = getRoleToZoneMap(state.rotation);
+        const frontContainer = document.getElementById('mini-grid-front');
+        const backContainer = document.getElementById('mini-grid-back');
+        frontContainer.innerHTML = '';
+        backContainer.innerHTML = '';
+
+        const buildCell = (z) => {
+          const role = zoneToRole[z];
+          const subL = isLiberoActiveForRole(role, z);
+          const displayRole = subL ? 'L' : role;
+          const meta = ROLES_META[displayRole];
+          const playerName = state.names[displayRole] || displayRole;
+
+          const div = document.createElement('div');
+          div.className = 'p-2 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-between gap-1 cursor-pointer hover:border-slate-600 transition';
+          div.innerHTML = `
+            <div class="flex items-center gap-1.5 min-w-0">
+              <span class="w-5 h-5 rounded-full flex items-center justify-center font-black text-[10px] shrink-0"
+                style="background:${meta.color}; color:${meta.textDark ? '#090d16' : '#ffffff'}">
+                ${displayRole}
+              </span>
+              <div class="truncate">
+                <div class="text-[11px] font-bold text-slate-200 truncate">${escapeHtml(playerName)}</div>
+                <div class="text-[9px] text-slate-400">${subL ? `Sub for ${role}` : ROLES_META[role].title}</div>
+              </div>
+            </div>
+            <span class="text-[10px] font-mono font-bold text-slate-400 shrink-0">Z${z}</span>
+          `;
+          div.addEventListener('click', () => {
+            state.selectedRole = role;
+            renderCourt();
+          });
+          return div;
+        };
+
+        [4, 3, 2].forEach((z) => frontContainer.appendChild(buildCell(z)));
+        [5, 6, 1].forEach((z) => backContainer.appendChild(buildCell(z)));
+      }
+
+      function renderCourt() {
+        const { zoneToRole, roleToZone } = getRoleToZoneMap(state.rotation);
+        const coords = getCurrentCoords(state.rotation, state.phase);
+        const phaseMeta = PHASES.find((p) => p.id === state.phase) || PHASES[1];
+        const checks = validateOverlaps(zoneToRole, coords);
+        const faults = checks.filter((c) => !c.valid);
+
+        // Update Overlap Banner
+        const banner = document.getElementById('overlap-banner');
+        const title = document.getElementById('overlap-title');
+        const subtitle = document.getElementById('overlap-subtitle');
+        const pill = document.getElementById('overlap-pill');
+
+        if (!phaseMeta.checkOverlap) {
+          banner.className = 'rounded-xl px-3.5 py-2.5 border text-xs flex items-start justify-between gap-3 bg-slate-950 border-slate-800';
+          title.className = 'font-bold text-sm text-blue-300';
+          title.textContent = 'Base / Transition Phase (Ball in Play)';
+          subtitle.textContent = 'Rotational overlap rules only apply at the moment of service contact. Players are now in specialized base positions.';
+          pill.className = 'px-2 py-0.5 rounded-md font-bold text-[11px] uppercase bg-blue-500/20 text-blue-300 border border-blue-500/30';
+          pill.textContent = 'IN PLAY';
+        } else if (faults.length === 0) {
+          banner.className = 'rounded-xl px-3.5 py-2.5 border text-xs flex items-start justify-between gap-3 bg-emerald-950/40 border-emerald-500/40';
+          title.className = 'font-bold text-sm text-emerald-300';
+          title.textContent = '✓ Legal FIVB Lineup — No Overlap Faults';
+          subtitle.textContent = 'Front-row players are ahead of their back-row counterparts (Z4>Z5, Z3>Z6, Z2>Z1) and left-to-right order is maintained.';
+          pill.className = 'px-2 py-0.5 rounded-md font-bold text-[11px] uppercase bg-emerald-500/20 text-emerald-300 border border-emerald-500/40';
+          pill.textContent = 'LEGAL';
+        } else {
+          banner.className = 'rounded-xl px-3.5 py-2.5 border text-xs flex items-start justify-between gap-3 bg-rose-950/60 border-rose-500/60';
+          title.className = 'font-bold text-sm text-rose-300';
+          title.textContent = `⚠ Rotational Overlap Fault (${faults.length} violation${faults.length > 1 ? 's' : ''})`;
+          subtitle.textContent = faults.map((f) => f.faultText).join(' • ');
+          pill.className = 'px-2 py-0.5 rounded-md font-bold text-[11px] uppercase bg-rose-500/30 text-rose-200 border border-rose-500/50';
+          pill.textContent = 'FAULT';
+        }
+
+        // 1. Legal Bounding Box Layer for Selected / Dragged Player
+        const boundsLayer = document.getElementById('legal-bounds-layer');
+        boundsLayer.innerHTML = '';
+        const activeRole = draggingRole || state.selectedRole;
+        if (activeRole && phaseMeta.checkOverlap && state.showOverlaps) {
+          const z = roleToZone[activeRole];
+          const b = getLegalBoundsForZone(z, zoneToRole, coords);
+          if (b.maxX > b.minX && b.maxY > b.minY) {
+            const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+            rect.setAttribute('x', b.minX);
+            rect.setAttribute('y', b.minY);
+            rect.setAttribute('width', b.maxX - b.minX);
+            rect.setAttribute('height', b.maxY - b.minY);
+            rect.setAttribute('rx', '1.5');
+            rect.setAttribute('fill', '#10b981');
+            rect.setAttribute('fill-opacity', '0.10');
+            rect.setAttribute('stroke', '#10b981');
+            rect.setAttribute('stroke-width', '0.5');
+            rect.setAttribute('stroke-dasharray', '1.5 1');
+            boundsLayer.appendChild(rect);
+          }
+        }
+
+        // 2. Overlap Neighbor Lines Layer
+        const overlapLayer = document.getElementById('overlap-lines-layer');
+        overlapLayer.innerHTML = '';
+        if (phaseMeta.checkOverlap && state.showOverlaps) {
+          checks.forEach((c) => {
+            const isRelatedToActive = activeRole && (c.roleA === activeRole || c.roleB === activeRole);
+            if (!c.valid || isRelatedToActive) {
+              const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+              line.setAttribute('x1', c.pA.x);
+              line.setAttribute('y1', c.pA.y);
+              line.setAttribute('x2', c.pB.x);
+              line.setAttribute('y2', c.pB.y);
+              line.setAttribute('stroke', c.valid ? '#64748b' : '#f43f5e');
+              line.setAttribute('stroke-width', c.valid ? '0.45' : '1.3');
+              if (c.valid) line.setAttribute('stroke-dasharray', '1.5 1.5');
+              overlapLayer.appendChild(line);
+            }
+          });
+        }
+
+        // 3. Movement / Transition Arrows Layer
+        const arrowsLayer = document.getElementById('movement-arrows-layer');
+        arrowsLayer.innerHTML = '';
+        if (state.showArrows && (state.phase === 'receive' || state.phase === 'serve')) {
+          const targetBase = getDefaultCoordsForPhase(state.rotation, 'base');
+          ROLES_ORDER.forEach((role) => {
+            const from = coords[role];
+            const z = roleToZone[role];
+            const isFront = z === 4 || z === 3 || z === 2;
+            let to = targetBase[role];
+            if (state.phase === 'receive') {
+              if (role === 's') to = { x: 68, y: 12.5 };
+              else if (role === 'd') to = isFront ? { x: 84, y: 18 } : { x: 82, y: 42 };
+              else if (role === 'a1' || role === 'a2') to = isFront ? { x: 14, y: 18 } : from;
+              else if (role === 'mb1' || role === 'mb2') to = isFront ? { x: 52, y: 15 } : from;
+            }
+
+            const dx = to.x - from.x;
+            const dy = to.y - from.y;
+            const dist = Math.hypot(dx, dy);
+            if (dist > 6) {
+              const ux = dx / dist;
+              const uy = dy / dist;
+              const startX = from.x + ux * 5.8;
+              const startY = from.y + uy * 5.8;
+              const endX = to.x - ux * 4.2;
+              const endY = to.y - uy * 4.2;
+
+              const path = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+              path.setAttribute('x1', startX);
+              path.setAttribute('y1', startY);
+              path.setAttribute('x2', endX);
+              path.setAttribute('y2', endY);
+              path.setAttribute('stroke', role === 's' ? '#fbbf24' : '#94a3b8');
+              path.setAttribute('stroke-width', role === 's' ? '0.75' : '0.5');
+              path.setAttribute('stroke-dasharray', role === 's' ? '1.8 1' : '1.2 1.2');
+              path.setAttribute('stroke-opacity', role === 's' ? '0.95' : '0.6');
+              path.setAttribute('marker-end', role === 's' ? 'url(#arrow-head-setter)' : 'url(#arrow-head)');
+              arrowsLayer.appendChild(path);
+            }
+          });
+        }
+
+        // 4. Update Persistent HTML Player Tokens In-Place (Never recreate DOM nodes)
+        const activePairRole = activeRole ? ROLES_META[activeRole].pair : null;
+
+        ROLES_ORDER.forEach((role) => {
+          const ref = tokenRefs[role];
+          if (!ref) return;
+
+          const pt = coords[role];
+          const z = roleToZone[role];
+          const subL = isLiberoActiveForRole(role, z);
+          const displayRole = subL ? 'L' : role;
+          const meta = ROLES_META[displayRole];
+          const customName = state.names[displayRole] || displayRole;
+          const isSelected = activeRole === role;
+          const isDiagonalPartner = activePairRole === role;
+          const hasFault = phaseMeta.checkOverlap && faults.some((f) => f.roleA === role || f.roleB === role);
+
+          // Position in percentage coordinates (x in 0..100, y in 0..104)
+          ref.el.style.left = `${pt.x}%`;
+          ref.el.style.top = `${(pt.y / 104) * 100}%`;
+
+          ref.el.classList.toggle('has-fault', hasFault);
+
+          // Update selection / diagonal partner halo ring
+          if (isSelected) {
+            ref.halo.style.opacity = '1';
+            ref.halo.style.border = '2px solid #fbbf24';
+          } else if (isDiagonalPartner) {
+            ref.halo.style.opacity = '0.85';
+            ref.halo.style.border = '1.5px dashed #cbd5e1';
+          } else {
+            ref.halo.style.opacity = '0';
+          }
+
+          // Update main circle colors and text in-place
+          ref.circle.style.backgroundColor = meta.color;
+          ref.circle.style.color = meta.textDark ? '#090d16' : '#ffffff';
+          ref.codeText.textContent = displayRole;
+
+          // Update zone badge & name pill in-place
+          ref.zoneBadge.textContent = `Z${z}`;
+          ref.nameBadge.textContent = customName.slice(0, 12);
+          ref.nameBadge.style.borderColor = isSelected ? '#fbbf24' : '#334155';
+        });
+
+        // Update Selected Player Inspector Hint
+        if (activeRole) {
+          const z = roleToZone[activeRole];
+          const pair = ROLES_META[activeRole].pair;
+          const pairZ = roleToZone[pair];
+          const hintEl = document.getElementById('selected-player-hint');
+          hintEl.innerHTML = `Selected: <strong class="text-amber-300">${activeRole.toUpperCase()} (${escapeHtml(state.names[activeRole] || activeRole)})</strong> in <strong>Zone ${z}</strong> • Diagonal Pair: <strong class="text-slate-200">${pair.toUpperCase()} (Zone ${pairZ})</strong>`;
+        }
+      }
+
+      function escapeHtml(str) {
+        return String(str)
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;');
+      }
+
+      // Clockwise Prev / Next Rotation Buttons
+      document.getElementById('btn-prev-rot').addEventListener('click', () => {
+        const idx = ROTATIONS.findIndex((r) => r.id === state.rotation);
+        const prevIdx = (idx - 1 + ROTATIONS.length) % ROTATIONS.length;
+        state.rotation = ROTATIONS[prevIdx].id;
+        saveState();
+        renderAll();
+      });
+
+      document.getElementById('btn-next-rot').addEventListener('click', () => {
+        const idx = ROTATIONS.findIndex((r) => r.id === state.rotation);
+        const nextIdx = (idx + 1) % ROTATIONS.length;
+        state.rotation = ROTATIONS[nextIdx].id;
+        saveState();
+        renderAll();
+      });
+
+      // Checkbox Toggles
+      document.getElementById('chk-libero').addEventListener('change', (e) => {
+        state.useLibero = e.target.checked;
+        saveState();
+        renderAll();
+      });
+      document.getElementById('chk-arrows').addEventListener('change', (e) => {
+        state.showArrows = e.target.checked;
+        saveState();
+        renderCourt();
+      });
+      document.getElementById('chk-overlaps').addEventListener('change', (e) => {
+        state.showOverlaps = e.target.checked;
+        saveState();
+        renderCourt();
+      });
+
+      // Reset Buttons
+      document.getElementById('btn-reset-view').addEventListener('click', () => {
+        const key = `${state.rotation}_${state.phase}`;
+        delete state.customCoords[key];
+        saveState();
+        renderAll();
+        showToast(`Reset ${state.rotation} (${state.phase}) positions to default.`);
+      });
+
+      document.getElementById('btn-reset-all').addEventListener('click', () => {
+        state = JSON.parse(JSON.stringify(DEFAULT_STATE));
+        saveState();
+        renderAll();
+        showToast('Reset board to Setter 2 (S2) and default roster.');
+      });
+
+      // Export / Import Modal Logic
+      const modal = document.getElementById('json-modal');
+      const jsonArea = document.getElementById('json-textarea');
+
+      document.getElementById('btn-export-import').addEventListener('click', () => {
+        jsonArea.value = JSON.stringify(state, null, 2);
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+      });
+
+      document.getElementById('btn-close-modal').addEventListener('click', () => {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+      });
+
+      document.getElementById('btn-copy-json').addEventListener('click', () => {
+        jsonArea.select();
+        document.execCommand('copy');
+        showToast('Copied JSON configuration to clipboard!');
+      });
+
+      document.getElementById('btn-import-json').addEventListener('click', () => {
+        try {
+          const imported = JSON.parse(jsonArea.value);
+          state = {
+            ...DEFAULT_STATE,
+            ...imported,
+            names: { ...DEFAULT_STATE.names, ...(imported.names || {}) },
+            customCoords: imported.customCoords || {}
+          };
+          saveState();
+          renderAll();
+          modal.classList.add('hidden');
+          modal.classList.remove('flex');
+          showToast('Successfully imported custom board state!');
+        } catch (err) {
+          showToast('Invalid JSON format. Please check your input.');
+        }
+      });
+
+      function showToast(msg) {
+        const toast = document.getElementById('toast');
+        toast.textContent = msg;
+        toast.classList.remove('hidden');
+        clearTimeout(showToast._timer);
+        showToast._timer = setTimeout(() => {
+          toast.classList.add('hidden');
+        }, 2800);
+      }
+
+      function renderAll() {
+        renderControls();
+        renderSidebar();
+        renderCourt();
+      }
+
+      // Initialize persistent tokens once and render board
+      createPersistentTokens();
+      renderAll();
+    })();
+  </script>
+</body>
+</html>
