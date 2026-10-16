@@ -429,7 +429,9 @@
       const STORAGE_KEY = 'vb_5_1_tactical_board_v5';
       const CLIENT_ID = Math.random().toString(36).slice(2, 10);
 
-      // Standard 5-1 Clockwise rotation sequence starting at Setter 2 with mb1 in Z1:
+      // Standard 5-1 clockwise rotation sequence starting at Setter 2 with mb1 in Z1.
+      // Each step moves every player one zone clockwise (Z2→Z1→Z6→Z5→Z4→Z3→Z2); diagonal
+      // partners (s/d, a1/a2, mb1/mb2) always stay three zones apart.
       const ROTATIONS = [
         {
           id: 'S2',
@@ -553,12 +555,28 @@
       const RTDB_PUSH_MS = 300;
       const SHARED_KEYS = ['rotation', 'phase', 'rulesEdition', 'useLibero', 'showArrows', 'showOverlaps', 'names', 'customCoords'];
 
+      // Serve-receive spots per rotation, keyed by zone; all are legal at the service hit.
+      // The passers are always both outsides plus L (the libero, or the back-row middle when the
+      // libero is off). Setter run = distance from the start spot to the SET target.
       const SERVE_RECEIVE_BY_ZONE = {
+        // S2: s (Z2) already at the target (run 0.6 m), mb2 (Z4) at the net. Passers a1 (Z3, drops back
+        // left), a2 (Z6), L (Z1). d (Z5) does not pass and waits deep in the left corner behind a1.
         S2: { 4: { x: 16, y: 18 }, 3: { x: 28, y: 58 }, 2: { x: 74, y: 14 }, 5: { x: 14, y: 78 }, 6: { x: 52, y: 66 }, 1: { x: 78, y: 64 } },
+        // S1: s (Z1) tucks behind a1 near the right sideline and penetrates up the right side: the
+        // longest run (5.8 m). d (Z4) and mb2 (Z3) at the net. Passers a2 (Z5), L (Z6), a1 (Z2, drops
+        // back right). After the pass a1 attacks left and d right, so their paths cross.
         S1: { 4: { x: 14, y: 16 }, 3: { x: 46, y: 18 }, 2: { x: 76, y: 56 }, 5: { x: 24, y: 64 }, 6: { x: 52, y: 66 }, 1: { x: 86, y: 64 } },
+        // S6: s (Z6) pushes up right behind d (Z3), close to the target (run 1.5 m). mb2 (Z2) at the net.
+        // Passers a2 (Z4, drops back left), L (Z5), a1 (Z1).
         S6: { 4: { x: 22, y: 58 }, 3: { x: 58, y: 14 }, 2: { x: 82, y: 18 }, 5: { x: 48, y: 66 }, 6: { x: 60, y: 24 }, 1: { x: 78, y: 64 } },
+        // S5: s (Z5) pushes up behind mb1 (Z4) at the left net and runs along the net (4.7 m). d (Z2) at
+        // the net. Passers a2 (Z3, drops back left), a1 (Z6), L (Z1).
         S5: { 4: { x: 18, y: 16 }, 3: { x: 30, y: 58 }, 2: { x: 84, y: 18 }, 5: { x: 24, y: 26 }, 6: { x: 54, y: 66 }, 1: { x: 78, y: 64 } },
+        // S4: front row stacks left. s (Z4) runs along the net to the target (5.5 m), mb1 (Z3) at the net,
+        // a2 (Z2) drops back to pass left. Passers a2, a1 (Z5), L (Z6). d (Z1) waits deep in the right corner.
         S4: { 4: { x: 14, y: 14 }, 3: { x: 24, y: 20 }, 2: { x: 34, y: 56 }, 5: { x: 52, y: 66 }, 6: { x: 74, y: 64 }, 1: { x: 88, y: 76 } },
+        // S3: s (Z3) starts at the target (run 0.4 m), mb1 (Z2) at the net. Passers a1 (Z4, drops back
+        // left), L (Z5), a2 (Z1). d (Z6) does not pass and waits deep between L and a2.
         S3: { 4: { x: 22, y: 58 }, 3: { x: 64, y: 14 }, 2: { x: 82, y: 18 }, 5: { x: 48, y: 66 }, 6: { x: 66, y: 78 }, 1: { x: 78, y: 64 } }
       };
 
