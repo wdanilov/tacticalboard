@@ -1,0 +1,33 @@
+name: Tests
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  browser-tests:
+    name: Browser tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      # GitHub's Ubuntu runners come with Python 3 and Google Chrome preinstalled.
+      - name: Run tests in headless Chrome
+        run: python3 tests/run.py
+
+  tailwind-css:
+    name: Tailwind CSS up to date
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Regenerate the inlined CSS
+        run: python3 build-css.py
+      - name: Fail if index.html changed
+        run: |
+          if ! git diff --quiet -- index.html; then
+            echo "::error file=index.html::The inlined Tailwind CSS is out of date. Run 'python3 build-css.py' and commit index.html."
+            exit 1
+          fi
