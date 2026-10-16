@@ -9,8 +9,9 @@ for exactly the classes it uses, inside one block:
 <style id="tailwind-css">…generated CSS…</style>
 ```
 
-Because of this, the page works offline. The only remaining external resource is the
-Inter font from Google Fonts; without it, the page falls back to the system font.
+The Inter font is embedded in the page too (licence: `licenses/Inter-OFL.txt`), so the
+page makes no external requests and works offline. Only the optional Firebase sync
+contacts a server.
 
 `build-css.py` regenerates that block. Run it whenever the set of classes in the
 page changes.
