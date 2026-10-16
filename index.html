@@ -116,7 +116,7 @@
       <!-- Header Utility Buttons -->
       <div class="flex flex-wrap items-center gap-2">
         <span id="sync-badge" class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-[11px] font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
-          <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+          <span id="sync-badge-dot" class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
           <span id="sync-badge-text">Tab Sync Active</span>
         </span>
         <button id="btn-reset-view" type="button"
@@ -142,7 +142,7 @@
         </span>
         <span class="text-[11px] text-slate-500">Applies across all rotations</span>
       </div>
-      <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
         <label class="flex items-center gap-2.5 cursor-pointer bg-slate-950 p-2.5 rounded-xl border border-slate-800 hover:border-slate-700 transition">
           <input id="chk-libero" type="checkbox" checked class="accent-pink-500 w-4 h-4 rounded cursor-pointer" />
           <span class="text-xs font-semibold text-slate-200">Sub Libero (<span class="text-pink-400 font-bold">L</span>) in Back Row</span>
@@ -154,6 +154,13 @@
         <label class="flex items-center gap-2.5 cursor-pointer bg-slate-950 p-2.5 rounded-xl border border-slate-800 hover:border-slate-700 transition">
           <input id="chk-overlaps" type="checkbox" checked class="accent-emerald-500 w-4 h-4 rounded cursor-pointer" />
           <span class="text-xs font-semibold text-slate-200">Overlap Guide Lines &amp; Bounds</span>
+        </label>
+        <label class="flex items-center gap-2.5 bg-slate-950 p-2.5 rounded-xl border border-slate-800 hover:border-slate-700 transition">
+          <span class="text-xs font-semibold text-slate-200 shrink-0">Rules</span>
+          <select id="sel-rules" class="flex-1 min-w-0 px-2 py-1 rounded-lg bg-slate-900 border border-slate-700 text-xs font-semibold text-slate-200 focus:outline-none focus:border-amber-400 cursor-pointer">
+            <option value="fivb2025">FIVB 2025–28 (current)</option>
+            <option value="classic">Pre-2025 (both teams)</option>
+          </select>
         </label>
       </div>
     </section>
@@ -248,11 +255,11 @@
               3M ATTACK LINE
             </text>
 
-            <!-- Service Zone Hash Marks (Back Right behind Z1) -->
-            <line x1="94" y1="92" x2="94" y2="95.5" stroke="#cbd5e1" stroke-width="0.6" />
-            <line x1="64.66" y1="92" x2="64.66" y2="95" stroke="#64748b" stroke-width="0.5" stroke-dasharray="1 1" />
-            <text x="79.5" y="96.5" text-anchor="middle" fill="#64748b" font-size="2" font-weight="700">
-              SERVICE ZONE (Z1)
+            <!-- Service Zone: full 9 m width behind the end line, marked by short extensions of both side lines -->
+            <line x1="6" y1="93.5" x2="6" y2="96" stroke="#cbd5e1" stroke-width="0.6" />
+            <line x1="94" y1="93.5" x2="94" y2="96" stroke="#cbd5e1" stroke-width="0.6" />
+            <text x="50" y="96.5" text-anchor="middle" fill="#64748b" font-size="2" font-weight="700">
+              SERVICE ZONE (FULL 9 M WIDTH)
             </text>
 
             <!-- Net & Antennas at Top -->
@@ -379,6 +386,9 @@
         <p class="text-[11px] text-slate-400">
           Local browser tabs sync automatically via <code>BroadcastChannel</code>. To sync across separate devices, paste a Firebase RTDB URL ending in <code>/board.json</code>:
         </p>
+        <p class="text-[11px] text-slate-500">
+          On connect, an existing shared board replaces this one; an empty database receives this board. The database must allow public read/write, so anyone with the URL can change the board: use a long, hard-to-guess path. The URL is not included in the JSON export.
+        </p>
         <div class="flex gap-2">
           <input id="input-firebase-url" type="text" placeholder="https://your-project-default-rtdb.firebasedatabase.app/board.json"
             class="flex-1 px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-700 text-xs text-white focus:outline-none focus:border-amber-400" />
@@ -487,11 +497,41 @@
       };
 
       const PHASES = [
-        { id: 'rotational', label: '1. Rotational Order', checkOverlap: true },
-        { id: 'receive',    label: '2. Serve-Receive',    checkOverlap: true },
-        { id: 'serve',      label: '3. Serving Stack',    checkOverlap: true },
-        { id: 'base',       label: '4. Base / Transition',checkOverlap: false }
+        { id: 'rotational', label: '1. Rotational Order' },
+        { id: 'receive',    label: '2. Serve-Receive' },
+        { id: 'serve',      label: '3. Serving' },
+        { id: 'defense',    label: '4. Defense Base' },
+        { id: 'transition', label: '5. Transition' }
       ];
+
+      // Banner copy for phases where no overlap check runs.
+      const FREE_PHASE_INFO = {
+        serve: {
+          title: 'Serving Team: Free Positioning (FIVB 2025–2028)',
+          text: 'At the service hit only the receiving team must be in rotational order. The serving team may stand anywhere, so players start at their defensive spots.',
+          pill: 'FREE'
+        },
+        defense: {
+          title: 'Defense Base (Ball in Play)',
+          text: 'Rotational overlap rules only apply at service contact. Players defend from their specialized positions; a back-row setter covers right back.',
+          pill: 'IN PLAY'
+        },
+        transition: {
+          title: 'Transition (Ball in Play)',
+          text: 'Rotational overlap rules only apply at service contact. The setter has penetrated to the target and hitters attack from their specialized positions.',
+          pill: 'IN PLAY'
+        }
+      };
+
+      const RULE_EDITIONS = ['fivb2025', 'classic'];
+
+      // Overlap rules are judged at service contact only. Under the FIVB 2025–2028 rules just the
+      // receiving team must be in rotational order; before that the serving team was checked too.
+      function phaseChecksOverlap(phaseId) {
+        if (phaseId === 'rotational' || phaseId === 'receive') return true;
+        if (phaseId === 'serve') return state.rulesEdition === 'classic';
+        return false;
+      }
 
       const ZONE_CENTERS = {
         4: { x: 20, y: 22 },
@@ -501,6 +541,15 @@
         6: { x: 50, y: 68 },
         1: { x: 80, y: 68 }
       };
+
+      const COURT = { minX: 6, maxX: 94, minY: 8, maxY: 92 };
+      const DRAG_BOUNDS = { minX: 6, maxX: 94, minY: 8, maxY: 97 };
+      const SERVICE_ZONE = { minX: 6, maxX: 94, minY: 92, maxY: 103 };
+      const SERVER_SPOT = { x: 80, y: 95 };
+      const OVERLAP_MARGIN = 0.8;
+      const STACK_GAP = 10;
+      const RTDB_PUSH_MS = 300;
+      const SHARED_KEYS = ['rotation', 'phase', 'rulesEdition', 'useLibero', 'showArrows', 'showOverlaps', 'names', 'customCoords'];
 
       const SERVE_RECEIVE_BY_ZONE = {
         S2: { 4: { x: 16, y: 18 }, 3: { x: 28, y: 58 }, 2: { x: 74, y: 14 }, 5: { x: 14, y: 78 }, 6: { x: 52, y: 66 }, 1: { x: 78, y: 64 } },
@@ -523,6 +572,7 @@
       const DEFAULT_STATE = {
         rotation: 'S2',
         phase: 'receive',
+        rulesEdition: 'fivb2025',
         useLibero: true,
         showArrows: true,
         showOverlaps: true,
@@ -540,49 +590,124 @@
         customCoords: {}
       };
 
+      // The old combined "Base / Transition" phase kept the setter at the net, which is now "Transition".
+      function migratePhaseId(phaseId) {
+        return phaseId === 'base' ? 'transition' : phaseId;
+      }
+
+      function sanitizeCoords(raw) {
+        const clean = {};
+        if (!raw || typeof raw !== 'object') return clean;
+        Object.entries(raw).forEach(([key, byRole]) => {
+          const [rotId, rawPhase] = key.split('_');
+          const phaseId = migratePhaseId(rawPhase);
+          if (!ROTATIONS.some((r) => r.id === rotId) || !PHASES.some((p) => p.id === phaseId)) return;
+          if (!byRole || typeof byRole !== 'object') return;
+          ROLES_ORDER.forEach((role) => {
+            const pt = byRole[role];
+            if (!pt || !Number.isFinite(pt.x) || !Number.isFinite(pt.y)) return;
+            const cleanKey = `${rotId}_${phaseId}`;
+            if (!clean[cleanKey]) clean[cleanKey] = {};
+            clean[cleanKey][role] = {
+              x: Math.max(DRAG_BOUNDS.minX, Math.min(DRAG_BOUNDS.maxX, pt.x)),
+              y: Math.max(DRAG_BOUNDS.minY, Math.min(DRAG_BOUNDS.maxY, pt.y))
+            };
+          });
+        });
+        return clean;
+      }
+
+      // Merges untrusted state (storage, other tabs, Firebase, JSON import) over `base`,
+      // keeping the base value for anything missing or malformed.
+      function sanitizeState(incoming, base) {
+        const src = incoming && typeof incoming === 'object' ? incoming : {};
+        const phase = migratePhaseId(src.phase);
+        const bool = (key) => (typeof src[key] === 'boolean' ? src[key] : base[key]);
+        const names = { ...base.names };
+        if (src.names && typeof src.names === 'object') {
+          Object.keys(DEFAULT_STATE.names).forEach((role) => {
+            if (typeof src.names[role] === 'string') names[role] = src.names[role].slice(0, 40);
+          });
+        }
+        return {
+          ...base,
+          rotation: ROTATIONS.some((r) => r.id === src.rotation) ? src.rotation : base.rotation,
+          phase: PHASES.some((p) => p.id === phase) ? phase : base.phase,
+          rulesEdition: RULE_EDITIONS.includes(src.rulesEdition) ? src.rulesEdition : base.rulesEdition,
+          useLibero: bool('useLibero'),
+          showArrows: bool('showArrows'),
+          showOverlaps: bool('showOverlaps'),
+          names,
+          customCoords: src.customCoords !== undefined ? sanitizeCoords(src.customCoords) : base.customCoords
+        };
+      }
+
       function loadState() {
+        const fresh = JSON.parse(JSON.stringify(DEFAULT_STATE));
         try {
           const raw = localStorage.getItem(STORAGE_KEY);
-          if (!raw) return JSON.parse(JSON.stringify(DEFAULT_STATE));
+          if (!raw) return fresh;
           const parsed = JSON.parse(raw);
-          return {
-            ...DEFAULT_STATE,
-            ...parsed,
-            names: { ...DEFAULT_STATE.names, ...(parsed.names || {}) },
-            customCoords: parsed.customCoords || {}
-          };
+          const loaded = sanitizeState(parsed, fresh);
+          // Selection and the Firebase URL are per-browser and never come from other clients.
+          if (ROLES_ORDER.includes(parsed.selectedRole)) loaded.selectedRole = parsed.selectedRole;
+          if (typeof parsed.firebaseUrl === 'string') loaded.firebaseUrl = parsed.firebaseUrl;
+          return loaded;
         } catch (err) {
-          return JSON.parse(JSON.stringify(DEFAULT_STATE));
+          return fresh;
         }
       }
 
       let state = loadState();
       let draggingRole = null;
       let activePointerId = null;
+      let dragKey = null;
+      let dragMoved = false;
       let grabOffsetX = 0;
       let grabOffsetY = 0;
+      let lastDragBroadcast = 0;
+      let pendingExternal = null;
+      let restoringFocus = false;
       let rtdbStream = null;
-      let lastRtdbPush = 0;
+      let rtdbReady = false;
+      let rtdbPushTimer = null;
 
       const bc = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('vb_5_1_sync_v5') : null;
       if (bc) {
         bc.onmessage = (ev) => {
-          if (!ev.data || ev.data._sender === CLIENT_ID || draggingRole) return;
-          applyExternalState(ev.data);
+          if (!ev.data || ev.data._sender === CLIENT_ID) return;
+          applyOrQueueExternal(ev.data);
         };
       }
 
+      function getSharedState() {
+        const shared = {};
+        SHARED_KEYS.forEach((key) => {
+          shared[key] = state[key];
+        });
+        return shared;
+      }
+
+      function getFocusedRosterRole() {
+        const el = document.activeElement;
+        return el && el.dataset ? el.dataset.roleInput || null : null;
+      }
+
+      // Updates that arrive mid-drag are held and merged when the drag ends instead of being dropped.
+      function applyOrQueueExternal(incoming) {
+        if (draggingRole) {
+          pendingExternal = incoming;
+          return;
+        }
+        applyExternalState(incoming);
+      }
+
       function applyExternalState(incoming) {
-        state = {
-          ...state,
-          rotation: ROTATIONS.some((r) => r.id === incoming.rotation) ? incoming.rotation : state.rotation,
-          phase: PHASES.some((p) => p.id === incoming.phase) ? incoming.phase : state.phase,
-          useLibero: Boolean(incoming.useLibero),
-          showArrows: Boolean(incoming.showArrows),
-          showOverlaps: Boolean(incoming.showOverlaps),
-          names: { ...state.names, ...(incoming.names || {}) },
-          customCoords: incoming.customCoords || {}
-        };
+        const typingRole = getFocusedRosterRole();
+        const next = sanitizeState(incoming, state);
+        // Keep the name being typed here so a stale remote copy cannot overwrite it mid-word.
+        if (typingRole) next.names[typingRole] = state.names[typingRole];
+        state = next;
         try {
           localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
         } catch (e) {}
@@ -595,16 +720,49 @@
         } catch (err) {}
 
         if (broadcast) {
-          const packet = { ...state, _sender: CLIENT_ID, _ts: Date.now() };
-          if (bc) bc.postMessage(packet);
-          if (state.firebaseUrl) {
-            fetch(state.firebaseUrl, {
-              method: 'PUT',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(packet)
-            }).catch(() => {});
-          }
+          if (bc) bc.postMessage({ ...getSharedState(), _sender: CLIENT_ID, _ts: Date.now() });
+          scheduleRtdbPush();
         }
+      }
+
+      // Coalesces rapid edits (dragging, typing) into at most one Firebase write per RTDB_PUSH_MS.
+      function scheduleRtdbPush() {
+        if (!state.firebaseUrl || !rtdbReady || rtdbPushTimer) return;
+        rtdbPushTimer = setTimeout(() => {
+          rtdbPushTimer = null;
+          pushToRtdb();
+        }, RTDB_PUSH_MS);
+      }
+
+      function pushToRtdb() {
+        const url = state.firebaseUrl;
+        if (!url || !rtdbReady) return;
+        const stillCurrent = () => url === state.firebaseUrl && rtdbReady;
+        fetch(url, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...getSharedState(), _sender: CLIENT_ID, _ts: Date.now() })
+        })
+          .then((res) => {
+            if (stillCurrent()) setSyncBadge(res.ok ? 'synced' : 'error');
+          })
+          .catch(() => {
+            if (stillCurrent()) setSyncBadge('error');
+          });
+      }
+
+      const SYNC_BADGES = {
+        local:      { text: bc ? 'Tab Sync Active' : 'Local Only', tone: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30', dot: 'bg-emerald-400' },
+        connecting: { text: 'Connecting to Firebase…',            tone: 'bg-amber-500/15 text-amber-300 border-amber-500/30',       dot: 'bg-amber-400' },
+        synced:     { text: 'Firebase RTDB Synced',               tone: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30', dot: 'bg-emerald-400' },
+        error:      { text: 'Firebase Sync Error',                tone: 'bg-rose-500/15 text-rose-300 border-rose-500/40',          dot: 'bg-rose-400' }
+      };
+
+      function setSyncBadge(status) {
+        const cfg = SYNC_BADGES[status];
+        document.getElementById('sync-badge').className = `inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-[11px] font-bold border ${cfg.tone}`;
+        document.getElementById('sync-badge-dot').className = `w-2 h-2 rounded-full animate-pulse ${cfg.dot}`;
+        document.getElementById('sync-badge-text').textContent = cfg.text;
       }
 
       function connectFirebaseRtdb(url) {
@@ -612,24 +770,55 @@
           rtdbStream.close();
           rtdbStream = null;
         }
-        const badgeText = document.getElementById('sync-badge-text');
+        rtdbReady = false;
+        clearTimeout(rtdbPushTimer);
+        rtdbPushTimer = null;
         if (!url) {
-          badgeText.textContent = 'Tab Sync Active';
+          setSyncBadge('local');
           return;
         }
+
+        setSyncBadge('connecting');
+        let stream;
         try {
-          rtdbStream = new EventSource(url);
-          badgeText.textContent = 'Firebase RTDB Synced';
-          rtdbStream.addEventListener('put', (ev) => {
-            try {
-              const payload = JSON.parse(ev.data);
-              if (!payload || !payload.data || payload.data._sender === CLIENT_ID || draggingRole) return;
-              applyExternalState(payload.data);
-            } catch (e) {}
-          });
+          stream = new EventSource(url);
         } catch (err) {
-          badgeText.textContent = 'Tab Sync Active';
+          setSyncBadge('error');
+          return;
         }
+        rtdbStream = stream;
+
+        stream.addEventListener('put', (ev) => {
+          let payload;
+          try {
+            payload = JSON.parse(ev.data);
+          } catch (e) {
+            return;
+          }
+          if (!payload || payload.path !== '/') return;
+          setSyncBadge('synced');
+          const remote = payload.data && typeof payload.data === 'object' ? payload.data : null;
+
+          if (!rtdbReady) {
+            // The first snapshot decides the direction: an existing shared board replaces this one,
+            // an empty database receives it. Nothing is written before this point.
+            rtdbReady = true;
+            if (!remote) {
+              pushToRtdb();
+              showToast('Uploaded this board to the empty Firebase database.');
+            } else if (remote._sender !== CLIENT_ID) {
+              applyOrQueueExternal(remote);
+              showToast('Loaded the shared board from Firebase.');
+            }
+            return;
+          }
+          if (remote && remote._sender !== CLIENT_ID) applyOrQueueExternal(remote);
+        });
+        stream.addEventListener('cancel', () => setSyncBadge('error'));
+        stream.addEventListener('auth_revoked', () => setSyncBadge('error'));
+        stream.onerror = () => {
+          if (rtdbStream === stream) setSyncBadge('error');
+        };
       }
 
       function getRotationObj(rotId) {
@@ -645,39 +834,78 @@
         return { zoneToRole: rot.zones, roleToZone };
       }
 
+      const isFrontZone = (z) => z === 2 || z === 3 || z === 4;
+
+      // Specialized positions once the ball is in play. In defense a back-row setter covers right back
+      // like the opposite would; in transition the setter has penetrated to the target at the net.
+      function getSpecializedSpot(role, isFront, phaseId) {
+        if (role === 's' && phaseId === 'transition') return { x: 70, y: 14 };
+        if (role === 's' || role === 'd') return isFront ? { x: 84, y: 20 } : { x: 82, y: 66 };
+        if (role === 'a1' || role === 'a2') return isFront ? { x: 16, y: 20 } : { x: 22, y: 66 };
+        return isFront ? { x: 50, y: 16 } : { x: 50, y: 76 };
+      }
+
+      // Pool-adjacent-violators: the non-decreasing sequence closest to `values`.
+      function isotonic(values) {
+        const blocks = [];
+        values.forEach((v) => {
+          blocks.push({ sum: v, n: 1 });
+          while (blocks.length > 1) {
+            const last = blocks[blocks.length - 1];
+            const prev = blocks[blocks.length - 2];
+            if (prev.sum / prev.n <= last.sum / last.n) break;
+            prev.sum += last.sum;
+            prev.n += last.n;
+            blocks.pop();
+          }
+        });
+        return blocks.flatMap((b) => Array(b.n).fill(b.sum / b.n));
+      }
+
+      // Puts a row into left-to-right zone order (zones listed leftmost first) with the smallest total
+      // shift from each player's target, keeping STACK_GAP between neighbours.
+      function stackRow(zones, byZone) {
+        const pooled = isotonic(zones.map((z, i) => byZone[z].x - i * STACK_GAP));
+        zones.forEach((z, i) => {
+          byZone[z].x = Math.round((pooled[i] + i * STACK_GAP) * 10) / 10;
+        });
+      }
+
+      // The server stands in the service zone; everyone else starts at their defensive spot. Under the
+      // pre-2025 rules the non-servers are stacked as close to those spots as rotational order allows.
+      function getServeCoords(rotId) {
+        const { zoneToRole } = getRoleToZoneMap(rotId);
+        const byZone = {};
+        [1, 2, 3, 4, 5, 6].forEach((z) => {
+          byZone[z] = getSpecializedSpot(zoneToRole[z], isFrontZone(z), 'defense');
+        });
+        byZone[1] = { ...SERVER_SPOT };
+        if (state.rulesEdition === 'classic') {
+          stackRow([4, 3, 2], byZone);
+          stackRow([5, 6], byZone); // the server in Z1 is exempt
+        }
+        const result = {};
+        [1, 2, 3, 4, 5, 6].forEach((z) => {
+          result[zoneToRole[z]] = byZone[z];
+        });
+        return result;
+      }
+
       function getDefaultCoordsForPhase(rotId, phaseId) {
+        if (phaseId === 'serve') return getServeCoords(rotId);
         const { roleToZone } = getRoleToZoneMap(rotId);
         const result = {};
 
         ROLES_ORDER.forEach((role) => {
           const z = roleToZone[role];
-          const isFront = z === 4 || z === 3 || z === 2;
 
           if (phaseId === 'rotational') {
             result[role] = { ...ZONE_CENTERS[z] };
           } else if (phaseId === 'receive') {
             const pt = SERVE_RECEIVE_BY_ZONE[rotId] && SERVE_RECEIVE_BY_ZONE[rotId][z];
             result[role] = pt ? { ...pt } : { ...ZONE_CENTERS[z] };
-          } else if (phaseId === 'serve') {
-            const serveByZone = {
-              4: { x: 40, y: 15 },
-              3: { x: 50, y: 14 },
-              2: { x: 60, y: 15 },
-              5: { x: 30, y: 70 },
-              6: { x: 52, y: 74 },
-              1: { x: 80, y: 95 }
-            };
-            result[role] = { ...serveByZone[z] };
           } else {
-            if (role === 's') {
-              result[role] = { x: 70, y: 14 };
-            } else if (role === 'd') {
-              result[role] = isFront ? { x: 84, y: 20 } : { x: 82, y: 66 };
-            } else if (role === 'a1' || role === 'a2') {
-              result[role] = isFront ? { x: 16, y: 20 } : { x: 22, y: 66 };
-            } else {
-              result[role] = isFront ? { x: 50, y: 16 } : { x: 50, y: 76 };
-            }
+            result[role] = getSpecializedSpot(role, isFrontZone(z), phaseId);
           }
         });
 
@@ -695,7 +923,9 @@
         return merged;
       }
 
-      function validateOverlaps(zoneToRole, coords) {
+      // `serverExempt`: in the serving phase the server (Z1) stands outside the court and is not part
+      // of the rotational-order check.
+      function validateOverlaps(zoneToRole, coords, serverExempt) {
         const rules = [
           { zA: 4, zB: 3, axis: 'x', label: 'Z4 left of Z3' },
           { zA: 3, zB: 2, axis: 'x', label: 'Z3 left of Z2' },
@@ -706,52 +936,75 @@
           { zA: 2, zB: 1, axis: 'y', label: 'Z2 ahead of Z1' }
         ];
 
-        return rules.map((r) => {
-          const roleA = zoneToRole[r.zA];
-          const roleB = zoneToRole[r.zB];
-          const pA = coords[roleA];
-          const pB = coords[roleB];
-          const valid = r.axis === 'x' ? pA.x < pB.x - 0.8 : pA.y < pB.y - 0.8;
-          return {
-            ...r,
-            roleA,
-            roleB,
-            pA,
-            pB,
-            valid,
-            faultText: `Z${r.zA} (${roleA.toUpperCase()}) must be ${r.axis === 'x' ? 'left of' : 'in front of'} Z${r.zB} (${roleB.toUpperCase()})`
-          };
-        });
+        const pairChecks = rules
+          .filter((r) => !(serverExempt && (r.zA === 1 || r.zB === 1)))
+          .map((r) => {
+            const roleA = zoneToRole[r.zA];
+            const roleB = zoneToRole[r.zB];
+            const pA = coords[roleA];
+            const pB = coords[roleB];
+            const valid = r.axis === 'x' ? pA.x < pB.x - OVERLAP_MARGIN : pA.y < pB.y - OVERLAP_MARGIN;
+            return {
+              ...r,
+              kind: 'pair',
+              roleA,
+              roleB,
+              pA,
+              pB,
+              valid,
+              faultText: `Z${r.zA} (${onCourtRole(roleA, r.zA).toUpperCase()}) must be ${r.axis === 'x' ? 'left of' : 'in front of'} Z${r.zB} (${onCourtRole(roleB, r.zB).toUpperCase()})`
+            };
+          });
+
+        // Apart from the server, every player must be on the court at the service hit.
+        const courtChecks = [1, 2, 3, 4, 5, 6]
+          .filter((z) => !(serverExempt && z === 1))
+          .map((z) => {
+            const role = zoneToRole[z];
+            return {
+              kind: 'court',
+              zA: z,
+              roleA: role,
+              roleB: null,
+              valid: coords[role].y <= COURT.maxY,
+              faultText: `Z${z} (${onCourtRole(role, z).toUpperCase()}) must be on the court`
+            };
+          });
+
+        return [...pairChecks, ...courtChecks];
       }
 
-      function getLegalBoundsForZone(z, zoneToRole, coords) {
-        let minX = 6;
-        let maxX = 94;
-        let minY = 8;
-        let maxY = 92;
+      function getLegalBoundsForZone(z, zoneToRole, coords, serverExempt) {
+        if (serverExempt && z === 1) return { ...SERVICE_ZONE };
 
+        let minX = COURT.minX;
+        let maxX = COURT.maxX;
+        let minY = COURT.minY;
+        let maxY = COURT.maxY;
+
+        const m = OVERLAP_MARGIN;
         const ptOf = (zoneNum) => coords[zoneToRole[zoneNum]];
 
         if (z === 4) {
-          maxX = Math.min(maxX, ptOf(3).x - 1);
-          maxY = Math.min(maxY, ptOf(5).y - 1);
+          maxX = Math.min(maxX, ptOf(3).x - m);
+          maxY = Math.min(maxY, ptOf(5).y - m);
         } else if (z === 3) {
-          minX = Math.max(minX, ptOf(4).x + 1);
-          maxX = Math.min(maxX, ptOf(2).x - 1);
-          maxY = Math.min(maxY, ptOf(6).y - 1);
+          minX = Math.max(minX, ptOf(4).x + m);
+          maxX = Math.min(maxX, ptOf(2).x - m);
+          maxY = Math.min(maxY, ptOf(6).y - m);
         } else if (z === 2) {
-          minX = Math.max(minX, ptOf(3).x + 1);
-          maxY = Math.min(maxY, ptOf(1).y - 1);
+          minX = Math.max(minX, ptOf(3).x + m);
+          if (!serverExempt) maxY = Math.min(maxY, ptOf(1).y - m);
         } else if (z === 5) {
-          maxX = Math.min(maxX, ptOf(6).x - 1);
-          minY = Math.max(minY, ptOf(4).y + 1);
+          maxX = Math.min(maxX, ptOf(6).x - m);
+          minY = Math.max(minY, ptOf(4).y + m);
         } else if (z === 6) {
-          minX = Math.max(minX, ptOf(5).x + 1);
-          maxX = Math.min(maxX, ptOf(1).x - 1);
-          minY = Math.max(minY, ptOf(3).y + 1);
+          minX = Math.max(minX, ptOf(5).x + m);
+          if (!serverExempt) maxX = Math.min(maxX, ptOf(1).x - m);
+          minY = Math.max(minY, ptOf(3).y + m);
         } else if (z === 1) {
-          minX = Math.max(minX, ptOf(6).x + 1);
-          minY = Math.max(minY, ptOf(2).y + 1);
+          minX = Math.max(minX, ptOf(6).x + m);
+          minY = Math.max(minY, ptOf(2).y + m);
         }
 
         return { minX, maxX, minY, maxY };
@@ -763,6 +1016,8 @@
         if (state.phase === 'serve' && z === 1) return false;
         return z === 1 || z === 6 || z === 5;
       }
+
+      const onCourtRole = (role, z) => (isLiberoActiveForRole(role, z) ? 'L' : role);
 
       const courtStage = document.getElementById('court-stage');
       const tokensOverlay = document.getElementById('tokens-overlay');
@@ -780,7 +1035,7 @@
           halo.className = 'absolute w-[52px] h-[52px] rounded-full pointer-events-none transition-opacity duration-150 opacity-0';
 
           const zoneBadge = document.createElement('div');
-          zoneBadge.className = 'absolute -top-2.5 px-1.5 py-0.2 rounded bg-slate-950 border border-slate-600 text-[10px] font-extrabold text-slate-200 leading-tight shadow';
+          zoneBadge.className = 'absolute -top-2.5 px-1.5 py-px rounded bg-slate-950 border border-slate-600 text-[10px] font-extrabold text-slate-200 leading-tight shadow';
 
           const circle = document.createElement('div');
           circle.className = 'token-circle';
@@ -803,6 +1058,8 @@
 
             draggingRole = role;
             activePointerId = e.pointerId;
+            dragKey = `${state.rotation}_${state.phase}`;
+            dragMoved = false;
             state.selectedRole = role;
 
             el.classList.add('is-dragging');
@@ -831,18 +1088,18 @@
             const pointerCourtX = ((e.clientX - rect.left) / rect.width) * 100;
             const pointerCourtY = ((e.clientY - rect.top) / rect.height) * 104;
 
-            const clampedX = Math.round(Math.max(6, Math.min(94, pointerCourtX - grabOffsetX)) * 10) / 10;
-            const clampedY = Math.round(Math.max(8, Math.min(96, pointerCourtY - grabOffsetY)) * 10) / 10;
+            const clampedX = Math.round(Math.max(DRAG_BOUNDS.minX, Math.min(DRAG_BOUNDS.maxX, pointerCourtX - grabOffsetX)) * 10) / 10;
+            const clampedY = Math.round(Math.max(DRAG_BOUNDS.minY, Math.min(DRAG_BOUNDS.maxY, pointerCourtY - grabOffsetY)) * 10) / 10;
 
-            const key = `${state.rotation}_${state.phase}`;
-            if (!state.customCoords[key]) state.customCoords[key] = {};
-            state.customCoords[key][role] = { x: clampedX, y: clampedY };
+            if (!state.customCoords[dragKey]) state.customCoords[dragKey] = {};
+            state.customCoords[dragKey][role] = { x: clampedX, y: clampedY };
+            dragMoved = true;
 
             renderCourt();
 
             const now = Date.now();
-            if (now - lastRtdbPush > 80) {
-              lastRtdbPush = now;
+            if (now - lastDragBroadcast > 80) {
+              lastDragBroadcast = now;
               saveState(true);
             }
           });
@@ -851,16 +1108,34 @@
             if (draggingRole !== role) return;
             if (e.pointerId !== undefined && activePointerId !== null && e.pointerId !== activePointerId) return;
 
+            // Clear the drag first so a re-entrant lostpointercapture call returns early.
+            const pointerId = activePointerId;
+            const key = dragKey;
+            const draggedPos = dragMoved && state.customCoords[key] ? state.customCoords[key][role] : null;
+            draggingRole = null;
+            activePointerId = null;
+            dragKey = null;
+
             el.classList.remove('is-dragging');
             try {
-              if (activePointerId !== null && el.hasPointerCapture(activePointerId)) {
-                el.releasePointerCapture(activePointerId);
+              if (pointerId !== null && el.hasPointerCapture(pointerId)) {
+                el.releasePointerCapture(pointerId);
               }
             } catch (err) {}
 
-            draggingRole = null;
-            activePointerId = null;
-            saveState(true);
+            if (pendingExternal) {
+              const incoming = pendingExternal;
+              pendingExternal = null;
+              applyExternalState(incoming);
+              // Re-apply this drag on top of the newer remote state before sharing the result.
+              if (draggedPos) {
+                if (!state.customCoords[key]) state.customCoords[key] = {};
+                state.customCoords[key][role] = draggedPos;
+              }
+            }
+
+            // A plain click only changes the local selection, so there is nothing to share.
+            saveState(Boolean(draggedPos));
             renderCourt();
           };
 
@@ -880,6 +1155,7 @@
         document.getElementById('chk-libero').checked = Boolean(state.useLibero);
         document.getElementById('chk-arrows').checked = Boolean(state.showArrows);
         document.getElementById('chk-overlaps').checked = Boolean(state.showOverlaps);
+        document.getElementById('sel-rules').value = state.rulesEdition;
 
         const rotGrid = document.getElementById('rotation-buttons-grid');
         rotGrid.innerHTML = '';
@@ -934,9 +1210,24 @@
         });
       }
 
+      const rosterCardClass = (isSelected) => `p-2.5 rounded-xl border transition ${
+        isSelected
+          ? 'bg-slate-800/90 border-amber-400/70'
+          : 'bg-slate-950/90 border-slate-800'
+      }`;
+
+      function updateRosterHighlight() {
+        document.querySelectorAll('[data-role-card]').forEach((card) => {
+          card.className = rosterCardClass(card.dataset.roleCard === state.selectedRole);
+        });
+      }
+
       function renderSidebar() {
         const { roleToZone } = getRoleToZoneMap(state.rotation);
         const rosterGrid = document.getElementById('roster-inputs-grid');
+        // Rebuilding the inputs drops focus, so remember where the user was typing.
+        const focusedRole = getFocusedRosterRole();
+        const caret = focusedRole ? [document.activeElement.selectionStart, document.activeElement.selectionEnd] : null;
         rosterGrid.innerHTML = '';
 
         const allRoles = [...ROLES_ORDER, 'L'];
@@ -946,11 +1237,8 @@
           const isSelected = state.selectedRole === role;
 
           const card = document.createElement('div');
-          card.className = `p-2.5 rounded-xl border transition ${
-            isSelected
-              ? 'bg-slate-800/90 border-amber-400/70'
-              : 'bg-slate-950/90 border-slate-800'
-          }`;
+          card.className = rosterCardClass(isSelected);
+          card.dataset.roleCard = role;
 
           card.innerHTML = `
             <div class="flex items-center justify-between text-xs mb-1.5">
@@ -966,7 +1254,7 @@
             <input
               type="text"
               data-role-input="${role}"
-              value="${(state.names[role] || '').replace(/"/g, '&quot;')}"
+              value="${escapeHtml(state.names[role] || '')}"
               placeholder="Player name..."
               class="w-full px-2.5 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-xs font-semibold text-white focus:outline-none focus:border-amber-400"
             />
@@ -974,7 +1262,7 @@
 
           const input = card.querySelector('input');
           input.addEventListener('focus', () => {
-            if (role !== 'L') {
+            if (role !== 'L' && !restoringFocus) {
               state.selectedRole = role;
               renderCourt();
             }
@@ -988,6 +1276,16 @@
 
           rosterGrid.appendChild(card);
         });
+
+        if (focusedRole) {
+          const input = rosterGrid.querySelector(`[data-role-input="${focusedRole}"]`);
+          if (input) {
+            restoringFocus = true;
+            input.focus();
+            input.setSelectionRange(caret[0], caret[1]);
+            restoringFocus = false;
+          }
+        }
 
         renderMiniGrid();
 
@@ -1038,33 +1336,37 @@
       function renderCourt() {
         const { zoneToRole, roleToZone } = getRoleToZoneMap(state.rotation);
         const coords = getCurrentCoords(state.rotation, state.phase);
-        const phaseMeta = PHASES.find((p) => p.id === state.phase) || PHASES[1];
-        const checks = validateOverlaps(zoneToRole, coords);
-        const faults = checks.filter((c) => !c.valid);
+        const checksOverlap = phaseChecksOverlap(state.phase);
+        const serverExempt = state.phase === 'serve';
+        const checks = validateOverlaps(zoneToRole, coords, serverExempt);
+        const faults = checksOverlap ? checks.filter((c) => !c.valid) : [];
 
         const banner = document.getElementById('overlap-banner');
         const title = document.getElementById('overlap-title');
         const subtitle = document.getElementById('overlap-subtitle');
         const pill = document.getElementById('overlap-pill');
 
-        if (!phaseMeta.checkOverlap) {
+        if (!checksOverlap) {
+          const info = FREE_PHASE_INFO[state.phase];
           banner.className = 'rounded-xl px-3.5 py-2.5 border text-xs flex items-start justify-between gap-3 bg-slate-950 border-slate-800';
           title.className = 'font-bold text-sm text-blue-300';
-          title.textContent = 'Base / Transition Phase (Ball in Play)';
-          subtitle.textContent = 'Rotational overlap rules only apply at service contact. Players are now in specialized base positions.';
+          title.textContent = info.title;
+          subtitle.textContent = info.text;
           pill.className = 'px-2 py-0.5 rounded-md font-bold text-[11px] uppercase bg-blue-500/20 text-blue-300 border border-blue-500/30';
-          pill.textContent = 'IN PLAY';
+          pill.textContent = info.pill;
         } else if (faults.length === 0) {
           banner.className = 'rounded-xl px-3.5 py-2.5 border text-xs flex items-start justify-between gap-3 bg-emerald-950/40 border-emerald-500/40';
           title.className = 'font-bold text-sm text-emerald-300';
-          title.textContent = '✓ Legal FIVB Lineup — No Overlap Faults';
-          subtitle.textContent = 'Front-row players are ahead of their back-row counterparts (Z4>Z5, Z3>Z6, Z2>Z1) and left-to-right order is maintained.';
+          title.textContent = '✓ Legal Lineup: No Positional Faults';
+          subtitle.textContent = serverExempt
+            ? 'Pre-2025 rules: every player except the server is in rotational order (Z4>Z5, Z3>Z6; Z4<Z3<Z2, Z5<Z6) and on the court.'
+            : 'Front-row players are ahead of their back-row counterparts (Z4>Z5, Z3>Z6, Z2>Z1), left-to-right order is maintained and everyone is on the court.';
           pill.className = 'px-2 py-0.5 rounded-md font-bold text-[11px] uppercase bg-emerald-500/20 text-emerald-300 border border-emerald-500/40';
           pill.textContent = 'LEGAL';
         } else {
           banner.className = 'rounded-xl px-3.5 py-2.5 border text-xs flex items-start justify-between gap-3 bg-rose-950/60 border-rose-500/60';
           title.className = 'font-bold text-sm text-rose-300';
-          title.textContent = `⚠ Rotational Overlap Fault (${faults.length} violation${faults.length > 1 ? 's' : ''})`;
+          title.textContent = `⚠ Positional Fault (${faults.length} violation${faults.length > 1 ? 's' : ''})`;
           subtitle.textContent = faults.map((f) => f.faultText).join(' • ');
           pill.className = 'px-2 py-0.5 rounded-md font-bold text-[11px] uppercase bg-rose-500/30 text-rose-200 border border-rose-500/50';
           pill.textContent = 'FAULT';
@@ -1073,9 +1375,9 @@
         const boundsLayer = document.getElementById('legal-bounds-layer');
         boundsLayer.innerHTML = '';
         const activeRole = draggingRole || state.selectedRole;
-        if (activeRole && phaseMeta.checkOverlap && state.showOverlaps) {
+        if (activeRole && checksOverlap && state.showOverlaps) {
           const z = roleToZone[activeRole];
-          const b = getLegalBoundsForZone(z, zoneToRole, coords);
+          const b = getLegalBoundsForZone(z, zoneToRole, coords, serverExempt);
           if (b.maxX > b.minX && b.maxY > b.minY) {
             const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
             rect.setAttribute('x', b.minX);
@@ -1094,8 +1396,9 @@
 
         const overlapLayer = document.getElementById('overlap-lines-layer');
         overlapLayer.innerHTML = '';
-        if (phaseMeta.checkOverlap && state.showOverlaps) {
+        if (checksOverlap && state.showOverlaps) {
           checks.forEach((c) => {
+            if (c.kind !== 'pair') return;
             const isRelatedToActive = activeRole && (c.roleA === activeRole || c.roleB === activeRole);
             if (!c.valid || isRelatedToActive) {
               const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
@@ -1114,7 +1417,8 @@
         const arrowsLayer = document.getElementById('movement-arrows-layer');
         arrowsLayer.innerHTML = '';
         if (state.showArrows && (state.phase === 'receive' || state.phase === 'serve')) {
-          const targetBase = getDefaultCoordsForPhase(state.rotation, 'base');
+          // After serving the team defends, so serve arrows lead to the (possibly customized) defense base.
+          const targetBase = getCurrentCoords(state.rotation, 'defense');
           ROLES_ORDER.forEach((role) => {
             const from = coords[role];
             const z = roleToZone[role];
@@ -1167,7 +1471,7 @@
           const customName = state.names[displayRole] || displayRole;
           const isSelected = activeRole === role;
           const isDiagonalPartner = activePairRole === role;
-          const hasFault = phaseMeta.checkOverlap && faults.some((f) => f.roleA === role || f.roleB === role);
+          const hasFault = faults.some((f) => f.roleA === role || f.roleB === role);
 
           ref.el.style.left = `${pt.x}%`;
           ref.el.style.top = `${(pt.y / 104) * 100}%`;
@@ -1197,9 +1501,13 @@
           const z = roleToZone[activeRole];
           const pair = ROLES_META[activeRole].pair;
           const pairZ = roleToZone[pair];
+          const shown = onCourtRole(activeRole, z);
+          const pairShown = onCourtRole(pair, pairZ);
           const hintEl = document.getElementById('selected-player-hint');
-          hintEl.innerHTML = `Selected: <strong class="text-amber-300">${activeRole.toUpperCase()} (${escapeHtml(state.names[activeRole] || activeRole)})</strong> in <strong>Zone ${z}</strong> • Diagonal Pair: <strong class="text-slate-200">${pair.toUpperCase()} (Zone ${pairZ})</strong>`;
+          hintEl.innerHTML = `Selected: <strong class="text-amber-300">${shown.toUpperCase()} (${escapeHtml(state.names[shown] || shown)})</strong>${shown === 'L' ? ` for ${activeRole.toUpperCase()}` : ''} in <strong>Zone ${z}</strong> • Diagonal Pair: <strong class="text-slate-200">${pairShown.toUpperCase()} (Zone ${pairZ})</strong>`;
         }
+
+        updateRosterHighlight();
       }
 
       function escapeHtml(str) {
@@ -1241,6 +1549,11 @@
         saveState(true);
         renderCourt();
       });
+      document.getElementById('sel-rules').addEventListener('change', (e) => {
+        state.rulesEdition = e.target.value;
+        saveState(true);
+        renderCourt();
+      });
 
       document.getElementById('btn-reset-view').addEventListener('click', () => {
         const key = `${state.rotation}_${state.phase}`;
@@ -1251,7 +1564,8 @@
       });
 
       document.getElementById('btn-reset-all').addEventListener('click', () => {
-        state = JSON.parse(JSON.stringify(DEFAULT_STATE));
+        // The Firebase URL is a connection setting, not board content; the reset is shared like any other change.
+        state = { ...JSON.parse(JSON.stringify(DEFAULT_STATE)), firebaseUrl: state.firebaseUrl };
         saveState(true);
         renderAll();
         showToast('Reset board to Setter 2 (S2) and default roster.');
@@ -1262,7 +1576,7 @@
       const fbInput = document.getElementById('input-firebase-url');
 
       document.getElementById('btn-export-import').addEventListener('click', () => {
-        jsonArea.value = JSON.stringify(state, null, 2);
+        jsonArea.value = JSON.stringify(getSharedState(), null, 2);
         fbInput.value = state.firebaseUrl || '';
         modal.classList.remove('hidden');
         modal.classList.add('flex');
@@ -1274,21 +1588,36 @@
       });
 
       document.getElementById('btn-connect-rtdb').addEventListener('click', () => {
-        state.firebaseUrl = fbInput.value.trim();
-        saveState(true);
-        connectFirebaseRtdb(state.firebaseUrl);
-        showToast(state.firebaseUrl ? 'Connected to Firebase RTDB stream!' : 'Using local tab sync.');
+        const url = fbInput.value.trim();
+        if (url && !/^https:\/\/\S+\.json(\?\S*)?$/.test(url)) {
+          showToast('Firebase URL must start with https:// and end in .json');
+          return;
+        }
+        state.firebaseUrl = url;
+        // Persist locally only; the first snapshot from the stream decides which board wins.
+        saveState(false);
+        connectFirebaseRtdb(url);
+        if (!url) showToast('Disconnected. Using local tab sync only.');
       });
 
       document.getElementById('btn-copy-json').addEventListener('click', () => {
-        jsonArea.select();
-        document.execCommand('copy');
-        showToast('Copied JSON configuration to clipboard!');
+        const copied = () => showToast('Copied JSON configuration to clipboard!');
+        const legacyCopy = () => {
+          jsonArea.select();
+          if (document.execCommand('copy')) copied();
+          else showToast('Copy failed. Select the text and copy it manually.');
+        };
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(jsonArea.value).then(copied, legacyCopy);
+        } else {
+          legacyCopy();
+        }
       });
 
       document.getElementById('btn-import-json').addEventListener('click', () => {
         try {
           const imported = JSON.parse(jsonArea.value);
+          if (!imported || typeof imported !== 'object' || Array.isArray(imported)) throw new Error('Not a board object');
           applyExternalState(imported);
           saveState(true);
           modal.classList.add('hidden');
@@ -1316,9 +1645,7 @@
       }
 
       createPersistentTokens();
-      if (state.firebaseUrl) {
-        connectFirebaseRtdb(state.firebaseUrl);
-      }
+      connectFirebaseRtdb(state.firebaseUrl);
       renderAll();
     })();
   </script>
