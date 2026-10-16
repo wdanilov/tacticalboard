@@ -134,6 +134,31 @@
       </div>
     </header>
 
+    <!-- Separate Display & Visual Settings Panel Above Rotation Sequence -->
+    <section class="bg-slate-900/95 border border-slate-800 rounded-2xl p-3.5 sm:p-4 shadow-xl space-y-2.5">
+      <div class="flex items-center justify-between">
+        <span class="text-xs font-bold uppercase tracking-wider text-slate-400">
+          Visual Display &amp; Player Settings
+        </span>
+        <span class="text-[11px] text-slate-500">Applies across all rotations</span>
+      </div>
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+        <label class="flex items-center gap-2.5 cursor-pointer bg-slate-950 p-2.5 rounded-xl border border-slate-800 hover:border-slate-700 transition">
+          <input id="chk-libero" type="checkbox" checked class="accent-pink-500 w-4 h-4 rounded cursor-pointer" />
+          <span class="text-xs font-semibold text-slate-200">Sub Libero (<span class="text-pink-400 font-bold">L</span>) in Back Row</span>
+        </label>
+        <label class="flex items-center gap-2.5 cursor-pointer bg-slate-950 p-2.5 rounded-xl border border-slate-800 hover:border-slate-700 transition">
+          <input id="chk-arrows" type="checkbox" checked class="accent-amber-500 w-4 h-4 rounded cursor-pointer" />
+          <span class="text-xs font-semibold text-slate-200">Movement Transition Arrows</span>
+        </label>
+        <label class="flex items-center gap-2.5 cursor-pointer bg-slate-950 p-2.5 rounded-xl border border-slate-800 hover:border-slate-700 transition">
+          <input id="chk-overlaps" type="checkbox" checked class="accent-emerald-500 w-4 h-4 rounded cursor-pointer" />
+          <span class="text-xs font-semibold text-slate-200">Overlap Guide Lines &amp; Bounds</span>
+        </label>
+      </div>
+    </section>
+
+    <!-- Rotation Controls Section (Below Settings Panel) -->
     <section class="bg-slate-900/95 border border-slate-800 rounded-2xl p-3 sm:p-4 shadow-xl space-y-3">
       <div class="flex items-center justify-between gap-2">
         <div class="flex items-center gap-2">
@@ -160,26 +185,10 @@
       <!-- 6 Rotation Buttons Grid -->
       <div id="rotation-buttons-grid" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2"></div>
 
-      <!-- Tactical Phases & Visual Toggles -->
-      <div class="pt-2.5 border-t border-slate-800/90 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+      <!-- Tactical Phases Bar -->
+      <div class="pt-2.5 border-t border-slate-800/90 flex flex-wrap items-center justify-between gap-2">
         <div class="flex flex-wrap items-center gap-1.5" id="phase-buttons-group"></div>
-
-        <div class="flex flex-wrap items-center gap-3 text-xs">
-          <label class="inline-flex items-center gap-2 cursor-pointer bg-slate-950 px-2.5 py-1.5 rounded-xl border border-slate-800">
-            <input id="chk-libero" type="checkbox" checked class="accent-pink-500 w-3.5 h-3.5 rounded cursor-pointer" />
-            <span class="font-semibold text-slate-200">Sub Libero (<span class="text-pink-400 font-bold">L</span>) in Back Row</span>
-          </label>
-
-          <label class="inline-flex items-center gap-2 cursor-pointer bg-slate-950 px-2.5 py-1.5 rounded-xl border border-slate-800">
-            <input id="chk-arrows" type="checkbox" checked class="accent-amber-500 w-3.5 h-3.5 rounded cursor-pointer" />
-            <span class="font-semibold text-slate-200">Movement Arrows</span>
-          </label>
-
-          <label class="inline-flex items-center gap-2 cursor-pointer bg-slate-950 px-2.5 py-1.5 rounded-xl border border-slate-800">
-            <input id="chk-overlaps" type="checkbox" checked class="accent-emerald-500 w-3.5 h-3.5 rounded cursor-pointer" />
-            <span class="font-semibold text-slate-200">Overlap Guide Lines</span>
-          </label>
-        </div>
+        <div class="text-xs text-slate-400 font-medium">Select a phase to test formations</div>
       </div>
     </section>
 
@@ -292,7 +301,7 @@
           <div class="flex items-center gap-3">
             <span class="inline-flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-amber-400 inline-block"></span> s</span>
             <span class="inline-flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-purple-400 inline-block"></span> d</span>
-            <span class="inline-flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-blue-400 inline-block"></span> a1/a2</span>
+            <span class="inline-flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-red-400 inline-block"></span> a1/a2</span>
             <span class="inline-flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-emerald-400 inline-block"></span> mb1/mb2</span>
           </div>
         </div>
@@ -405,11 +414,10 @@
   <!-- Core Application JavaScript -->
   <script>
     (function () {
-      const STORAGE_KEY = 'vb_5_1_tactical_board_v4';
+      const STORAGE_KEY = 'vb_5_1_tactical_board_v5';
       const CLIENT_ID = Math.random().toString(36).slice(2, 10);
 
-      // Standard 5-1 Clockwise rotation sequence starting at Setter 2:
-      // In S2: Z1=mb1, Z2=s, Z3=a1, Z4=mb2, Z5=d, Z6=a2
+      // Standard 5-1 Clockwise rotation sequence starting at Setter 2 with mb1 in Z1:
       const ROTATIONS = [
         {
           id: 'S2',
@@ -471,8 +479,8 @@
       const ROLES_META = {
         s:   { id: 's',   title: 'Setter',             pair: 'd',   color: '#f59e0b', textDark: true },
         d:   { id: 'd',   title: 'Diagonal / Opp',     pair: 's',   color: '#a855f7', textDark: false },
-        a1:  { id: 'a1',  title: 'Outside Attacker 1', pair: 'a2',  color: '#3b82f6', textDark: false },
-        a2:  { id: 'a2',  title: 'Outside Attacker 2', pair: 'a1',  color: '#0ea5e9', textDark: true },
+        a1:  { id: 'a1',  title: 'Outside Attacker 1', pair: 'a2',  color: '#f87171', textDark: true },
+        a2:  { id: 'a2',  title: 'Outside Attacker 2', pair: 'a1',  color: '#fca5a5', textDark: true },
         mb1: { id: 'mb1', title: 'Middle Blocker 1',   pair: 'mb2', color: '#10b981', textDark: true },
         mb2: { id: 'mb2', title: 'Middle Blocker 2',   pair: 'mb1', color: '#14b8a6', textDark: true },
         L:   { id: 'L',   title: 'Libero (Back Row)',  pair: 'mb',  color: '#ec4899', textDark: false }
@@ -495,60 +503,12 @@
       };
 
       const SERVE_RECEIVE_BY_ZONE = {
-        // S2: Z4=mb2, Z3=a1 (drops left-back), Z2=s, Z5=d, Z6=a2, Z1=mb1/L
-        S2: {
-          4: { x: 16, y: 18 },
-          3: { x: 28, y: 58 },
-          2: { x: 74, y: 14 },
-          5: { x: 14, y: 78 },
-          6: { x: 52, y: 66 },
-          1: { x: 78, y: 64 }
-        },
-        // S1: Z4=d, Z3=mb2, Z2=a1 (drops right-back), Z5=a2, Z6=mb1/L, Z1=s (tucks behind a1)
-        S1: {
-          4: { x: 14, y: 16 },
-          3: { x: 46, y: 18 },
-          2: { x: 76, y: 56 },
-          5: { x: 24, y: 64 },
-          6: { x: 52, y: 66 },
-          1: { x: 86, y: 64 }
-        },
-        // S6: Z4=a2 (drops left-back), Z3=d, Z2=mb2, Z5=mb1/L, Z6=s (pushes behind d), Z1=a1
-        S6: {
-          4: { x: 22, y: 58 },
-          3: { x: 58, y: 14 },
-          2: { x: 82, y: 18 },
-          5: { x: 48, y: 66 },
-          6: { x: 60, y: 24 },
-          1: { x: 78, y: 64 }
-        },
-        // S5: Z4=mb1, Z3=a2 (drops left-back), Z2=d, Z5=s (pushes behind mb1), Z6=a1, Z1=mb2/L
-        S5: {
-          4: { x: 18, y: 16 },
-          3: { x: 30, y: 58 },
-          2: { x: 84, y: 18 },
-          5: { x: 24, y: 26 },
-          6: { x: 54, y: 66 },
-          1: { x: 78, y: 64 }
-        },
-        // S4: Z4=s, Z3=mb1, Z2=a2 (drops left-back), Z5=a1, Z6=mb2/L, Z1=d
-        S4: {
-          4: { x: 14, y: 14 },
-          3: { x: 24, y: 20 },
-          2: { x: 34, y: 56 },
-          5: { x: 52, y: 66 },
-          6: { x: 74, y: 64 },
-          1: { x: 88, y: 76 }
-        },
-        // S3: Z4=a1 (drops left-back), Z3=s, Z2=mb1, Z5=mb2/L, Z6=d, Z1=a2
-        S3: {
-          4: { x: 22, y: 58 },
-          3: { x: 64, y: 14 },
-          2: { x: 82, y: 18 },
-          5: { x: 48, y: 66 },
-          6: { x: 66, y: 78 },
-          1: { x: 78, y: 64 }
-        }
+        S2: { 4: { x: 16, y: 18 }, 3: { x: 28, y: 58 }, 2: { x: 74, y: 14 }, 5: { x: 14, y: 78 }, 6: { x: 52, y: 66 }, 1: { x: 78, y: 64 } },
+        S1: { 4: { x: 14, y: 16 }, 3: { x: 46, y: 18 }, 2: { x: 76, y: 56 }, 5: { x: 24, y: 64 }, 6: { x: 52, y: 66 }, 1: { x: 86, y: 64 } },
+        S6: { 4: { x: 22, y: 58 }, 3: { x: 58, y: 14 }, 2: { x: 82, y: 18 }, 5: { x: 48, y: 66 }, 6: { x: 60, y: 24 }, 1: { x: 78, y: 64 } },
+        S5: { 4: { x: 18, y: 16 }, 3: { x: 30, y: 58 }, 2: { x: 84, y: 18 }, 5: { x: 24, y: 26 }, 6: { x: 54, y: 66 }, 1: { x: 78, y: 64 } },
+        S4: { 4: { x: 14, y: 14 }, 3: { x: 24, y: 20 }, 2: { x: 34, y: 56 }, 5: { x: 52, y: 66 }, 6: { x: 74, y: 64 }, 1: { x: 88, y: 76 } },
+        S3: { 4: { x: 22, y: 58 }, 3: { x: 64, y: 14 }, 2: { x: 82, y: 18 }, 5: { x: 48, y: 66 }, 6: { x: 66, y: 78 }, 1: { x: 78, y: 64 } }
       };
 
       const TACTICAL_NOTES = {
@@ -604,7 +564,7 @@
       let rtdbStream = null;
       let lastRtdbPush = 0;
 
-      const bc = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('vb_5_1_sync_v4') : null;
+      const bc = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('vb_5_1_sync_v5') : null;
       if (bc) {
         bc.onmessage = (ev) => {
           if (!ev.data || ev.data._sender === CLIENT_ID || draggingRole) return;
